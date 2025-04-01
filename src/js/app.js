@@ -360,7 +360,7 @@ function processarArquivoShapefile(file) {
                                     matricula: props.MATRICULA || props.Matricula || '',
                                     car: props.CAR || '',
                                     itr: props.ITR || '',
-                                    ccir: props.CCIR || '',
+                                    ccir: props.CCIR || props.Ccir || '',
                                     documentos: []
                                 };
                                 
@@ -473,7 +473,7 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
                         nome: props.name || props.Nome || nome.replace(/\.[^/.]+$/, ""),
                         camada: l,
                         tipo: tipo,
-                        area: window.calcularArea ? window.calcularArea(l) : "N/A",
+                        area: "Calculando...", // Iniciar com "Calculando..." e atualizar depois
                         propriedades: props,
                         // Campos para documentos
                         matricula: props.MATRICULA || props.Matricula || '',
@@ -488,6 +488,23 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
                         window.propriedades = [];
                     }
                     window.propriedades.push(propriedade);
+                    
+                    // Calcular área após um pequeno atraso para garantir que a camada seja renderizada
+                    setTimeout(() => {
+                        try {
+                            if (typeof window.calcularArea === 'function') {
+                                propriedade.area = window.calcularArea(l);
+                                console.log(`Área calculada para ${propriedade.nome}: ${propriedade.area} ha`);
+                                
+                                // Atualizar interface se a propriedade estiver selecionada
+                                if (window.camadaAtiva === l && document.getElementById('info-area')) {
+                                    document.getElementById('info-area').textContent = propriedade.area + ' ha';
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Erro ao calcular área na adição da camada:", e);
+                        }
+                    }, 500);
                     
                     // Configurar eventos
                     try {
@@ -585,17 +602,71 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
 // Calcular área aproximada do polígono em hectares
 window.calcularArea = function(layer) {
     try {
-        if (layer.feature.geometry.type === 'Polygon' || layer.feature.geometry.type === 'MultiPolygon') {
-            // Usar Leaflet para calcular área em metros quadrados
-            const areaEmM2 = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-            // Converter para hectares (1 hectare = 10000 m²)
-            return (areaEmM2 / 10000).toFixed(2);
+        // Verificar se o objeto Leaflet tem a função getLatLngs
+        if (layer && typeof layer.getLatLngs === 'function') {
+            let latlngs = layer.getLatLngs();
+            
+            // Se for um polígono simples
+            if (Array.isArray(latlngs) && latlngs.length > 0) {
+                // Verificar se é um polígono aninhado (como em MultiPolygons)
+                if (Array.isArray(latlngs[0]) && latlngs[0].length > 0) {
+                    // Usar o primeiro anel do polígono para cálculo
+                    if (L.GeometryUtil && typeof L.GeometryUtil.geodesicArea === 'function') {
+                        const areaEmM2 = L.GeometryUtil.geodesicArea(latlngs[0]);
+                        // Converter para hectares (1 hectare = 10000 m²)
+                        return (areaEmM2 / 10000).toFixed(2);
+                    }
+                } 
+                // Tentar com o formato de polígono atual
+                else if (L.GeometryUtil && typeof L.GeometryUtil.geodesicArea === 'function') {
+                    const areaEmM2 = L.GeometryUtil.geodesicArea(latlngs);
+                    return (areaEmM2 / 10000).toFixed(2);
+                }
+            } 
+            
+            // Tentar outra abordagem para polígonos complexos
+            if (layer.feature && layer.feature.geometry) {
+                // Se tivermos um GeoJSON, tentar extrair coordenadas para cálculo
+                const geom = layer.feature.geometry;
+                if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                    // Criar uma cópia temporária para calcular a área
+                    const tempLayer = L.geoJSON(geom);
+                    let totalArea = 0;
+                    
+                    tempLayer.eachLayer(function(l) {
+                        if (l.getLatLngs && L.GeometryUtil && typeof L.GeometryUtil.geodesicArea === 'function') {
+                            const coords = l.getLatLngs();
+                            const ringArea = L.GeometryUtil.geodesicArea(Array.isArray(coords[0]) ? coords[0] : coords);
+                            totalArea += ringArea;
+                        }
+                    });
+                    
+                    if (totalArea > 0) {
+                        return (totalArea / 10000).toFixed(2);
+                    }
+                }
+            }
         }
+        
+        // Método alternativo para casos onde GeometryUtil não está disponível
+        if (typeof turf !== 'undefined' && layer.toGeoJSON) {
+            try {
+                const geojson = layer.toGeoJSON();
+                const area = turf.area(geojson);
+                return (area / 10000).toFixed(2);
+            } catch (e) {
+                console.warn("Erro ao calcular área com Turf.js:", e);
+            }
+        }
+        
+        // Adicionar mais métodos de cálculo se necessário
+        
+        console.warn("Não foi possível calcular área usando os métodos disponíveis");
     } catch (e) {
-        console.warn("Não foi possível calcular área:", e);
+        console.warn("Erro ao calcular área:", e);
     }
     return "N/A";
-}
+};
 
 // Gerar ID único para propriedades
 window.gerarId = function() {

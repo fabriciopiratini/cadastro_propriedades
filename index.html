@@ -249,6 +249,21 @@
                     }
                     window.propriedades.push(propriedade);
                     
+                    // Calcular área após adicionar ao mapa
+                    setTimeout(() => {
+                        try {
+                            if (typeof window.calcularArea === 'function') {
+                                propriedade.area = window.calcularArea(layer);
+                                // Atualizar interface se a propriedade estiver selecionada
+                                if (window.camadaAtiva === layer && document.getElementById('info-area')) {
+                                    document.getElementById('info-area').textContent = propriedade.area + ' ha';
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Erro ao calcular área do polígono:", e);
+                        }
+                    }, 500);
+                    
                     // Configurar eventos
                     layer.on({
                         click: (e) => {
@@ -292,6 +307,41 @@
     
     <!-- Leaflet Geometry Util para cálculo de áreas -->
     <script src="https://unpkg.com/leaflet-geometryutil@0.10.1/src/leaflet.geometryutil.js"></script>
+    
+    <!-- Turf.js para cálculos geoespaciais (alternativa para cálculo de área) -->
+    <script>
+        // Carregar Turf.js dinamicamente para fornecer métodos alternativos de cálculo
+        function carregarTurf() {
+            return new Promise((resolve, reject) => {
+                // Verificar se já foi carregado
+                if (typeof turf !== 'undefined') {
+                    console.log('Turf.js já está carregado');
+                    resolve(true);
+                    return;
+                }
+                
+                console.log('Carregando Turf.js para cálculos geoespaciais...');
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/@turf/turf@6/turf.min.js';
+                script.onload = () => {
+                    console.log('Turf.js carregado com sucesso');
+                    resolve(true);
+                };
+                script.onerror = (e) => {
+                    console.warn('Falha ao carregar Turf.js:', e);
+                    reject(new Error('Não foi possível carregar Turf.js'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Carregar ao iniciar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarTurf()
+                .then(() => console.log('Turf.js pronto para uso em cálculos geoespaciais'))
+                .catch(err => console.warn('Turf.js não disponível:', err));
+        });
+    </script>
     
     <!-- Script simples para monitorar erros globais -->
     <script>

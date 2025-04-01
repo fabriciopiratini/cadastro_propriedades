@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Exemplo de Propriedade Rural</name>
+    <Style id="poligono_estilo">
+      <LineStyle>
+        <color>ff00aa00</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>4000aa00</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>Fazenda Modelo</name>
+      <description>Exemplo de propriedade rural para teste</description>
+      <ExtendedData>
+        <Data name="MATRICULA">
+          <value>12345</value>
+        </Data>
+        <Data name="CAR">
+          <value>BR-1234567-ABCDEFGH</value>
+        </Data>
+        <Data name="ITR">
+          <value>123456789</value>
+        </Data>
+        <Data name="CCIR">
+          <value>987654321</value>
+        </Data>
+      </ExtendedData>
+      <styleUrl>#poligono_estilo</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -48.1,-15.8
+              -48.0,-15.8
+              -48.0,-15.7
+              -48.1,-15.7
+              -48.1,-15.8
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

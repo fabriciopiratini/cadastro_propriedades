@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Produtor - Gestão de Propriedades</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
+    
+    <!-- Adicional CSS para o projeto -->
+    <link rel="stylesheet" href="src/css/style.css">
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+    
+    <!-- Plugin para visualização de KML -->
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    
+    <!-- JSZip para arquivos KMZ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- ShpJS para leitura de arquivos Shapefile -->
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    
+    <!-- Leaflet GeometryUtil para cálculos de área -->
+    <script src="https://unpkg.com/leaflet-geometryutil@0.10.1/dist/leaflet.geometryutil.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Portal do Produtor</h1>
+        <nav>
+            <ul>
+                <li><a href="#" class="active">Mapa de Propriedades</a></li>
+                <li><a href="#">Importar Arquivos</a></li>
+                <li><a href="#">Ajuda</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main>
+        <div class="sidebar">
+            <div class="propriedades-lista">
+                <h2>Propriedades</h2>
+                <div id="lista-propriedades">
+                    <!-- Lista de propriedades será carregada dinamicamente -->
+                </div>
+                <div class="import-controls">
+                    <button id="btn-importar">Importar Arquivos</button>
+                    <input type="file" id="file-input" accept=".kml,.kmz,.shp,.zip" multiple style="display: none;">
+                </div>
+            </div>
+        </div>
+        
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="info-panel" id="propriedade-info" style="display: none;">
+            <h3 id="info-titulo">Informações da Propriedade</h3>
+            <button class="close-btn" id="close-info">×</button>
+            <div id="info-content">
+                <div class="info-item">
+                    <span class="info-label">Nome:</span>
+                    <span id="info-nome" class="info-value">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Área (ha):</span>
+                    <span id="info-area" class="info-value">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Matrícula:</span>
+                    <div class="info-editable">
+                        <span id="info-matricula" class="info-value">-</span>
+                        <input type="text" id="edit-matricula" class="edit-field" style="display: none;">
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">CAR:</span>
+                    <div class="info-editable">
+                        <span id="info-car" class="info-value">-</span>
+                        <input type="text" id="edit-car" class="edit-field" style="display: none;">
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">ITR:</span>
+                    <div class="info-editable">
+                        <span id="info-itr" class="info-value">-</span>
+                        <input type="text" id="edit-itr" class="edit-field" style="display: none;">
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">CCIR:</span>
+                    <div class="info-editable">
+                        <span id="info-ccir" class="info-value">-</span>
+                        <input type="text" id="edit-ccir" class="edit-field" style="display: none;">
+                    </div>
+                </div>
+                <div class="info-buttons">
+                    <button id="btn-editar" class="action-btn">Editar Dados</button>
+                    <button id="btn-salvar" class="action-btn" style="display: none;">Salvar</button>
+                    <button id="btn-cancelar" class="action-btn" style="display: none;">Cancelar</button>
+                </div>
+                <div class="info-documents">
+                    <h4>Documentos</h4>
+                    <div id="documents-list">
+                        <!-- Documentos serão listados aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Portal do Produtor - Todos os direitos reservados</p>
+    </footer>
+    
+    <!-- JavaScript principal -->
+    <script src="src/js/app.js"></script>
+    
+    <!-- Script para edição de propriedades -->
+    <script src="src/js/editor.js"></script>
+</body>
+</html> 

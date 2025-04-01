@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal do Produtor - Gestão de Propriedades</title>
     
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
     <!-- Estilo mínimo para fallback quando JS estiver desativado -->
     <style>
         .fallback-page {
@@ -44,6 +47,15 @@
     <!-- jQuery para garantir compatibilidade e fallbacks -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     
+    <!-- Pako para compressão de dados (usado para compartilhamento de perímetros via URL) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha512-g2TeAWw5GPnX7z0Kn8nFbYfeHcvAu/tx6d6mrLe/90mkCxO+RcptyYpksUz35EO337F83bZwcmUyHiHamxi9sw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        // Fallback para pako 
+        if (typeof pako === 'undefined') {
+            document.write('<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"><\/script>');
+        }
+    </script>
+    
     <!-- Leaflet JS de múltiplas fontes -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
     <script>
@@ -53,52 +65,21 @@
         }
     </script>
     
-    <!-- Leaflet-Omnivore para KML -->
-    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    <!-- Leaflet Omnivore para KML e outros formatos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js" integrity="sha512-61byQALH5N9K8V/F83X7YRfE+aNuoV6HWKLcLnxh9YMLlSXBiBmqxqNNO2oAOjEbVBQkwRQj+LjRYJ5LZqRDgw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
         // Fallback para caso a primeira fonte falhe
         if (typeof omnivore === 'undefined') {
-            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js" crossorigin="anonymous"><\/script>');
+            document.write('<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"><\/script>');
         }
     </script>
     
-    <!-- JSZip para KMZ -->
+    <!-- Bibliotecas para processamento de Shapefile -->
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
-    <!-- ShpJS para Shapefile -->
-    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
-    <script>
-        // Fallback para caso a primeira fonte falhe
-        if (typeof shp === 'undefined') {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/shpjs@latest/dist/shp.min.js" crossorigin="anonymous"><\/script>');
-        }
-    </script>
-    
-    <!-- Leaflet GeometryUtil para cálculos de área -->
-    <script src="https://unpkg.com/leaflet-geometryutil@0.10.1/dist/leaflet.geometryutil.js"></script>
-    <script>
-        // Verificação de carregamento e backup local
-        window.addEventListener('DOMContentLoaded', function() {
-            // Verificar se todas as bibliotecas foram carregadas
-            setTimeout(function() {
-                if (typeof L === 'undefined' || typeof omnivore === 'undefined' || 
-                    typeof JSZip === 'undefined' || typeof shp === 'undefined') {
-                    
-                    alert("Aviso: Houve um problema ao carregar algumas bibliotecas. O aplicativo pode ter funcionalidade limitada.");
-                }
-                
-                // Esconder a página de fallback se o app carregar corretamente
-                document.getElementById('loading-indicator').style.display = 'none';
-            }, 2000);
-        });
-        
-        // Monitorar erros globais
-        window.addEventListener('error', function(e) {
-            console.error('Erro global capturado:', e.message);
-            document.getElementById('error-message').style.display = 'block';
-            document.getElementById('error-message').textContent = 'Erro: ' + e.message;
-        });
-    </script>
+    <!-- Leaflet Geometry Util para cálculo de áreas -->
+    <script src="https://unpkg.com/leaflet-geometryutil@0.10.1/src/leaflet.geometryutil.js"></script>
 </head>
 <body>
     <!-- Indicador de carregamento e fallback para quando JS falhar -->
@@ -158,90 +139,60 @@
         
         <div id="map-container">
             <div id="map"></div>
-        </div>
-        
-        <div class="info-panel" id="propriedade-info" style="display: none;">
-            <h3 id="info-titulo">Informações da Propriedade</h3>
-            <button class="close-btn" id="close-info">×</button>
-            <div id="info-content">
-                <div class="info-item">
-                    <span class="info-label">Nome:</span>
-                    <span id="info-nome" class="info-value">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Área (ha):</span>
-                    <div class="info-editable">
-                        <span id="info-area" class="info-value">-</span>
-                        <input type="text" id="edit-area" class="edit-field" style="display: none;">
-                    </div>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Matrícula:</span>
-                    <div class="info-editable">
-                        <span id="info-matricula" class="info-value">-</span>
-                        <input type="text" id="edit-matricula" class="edit-field" style="display: none;">
-                    </div>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">CAR:</span>
-                    <div class="info-editable">
-                        <span id="info-car" class="info-value">-</span>
-                        <input type="text" id="edit-car" class="edit-field" style="display: none;">
-                    </div>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ITR:</span>
-                    <div class="info-editable">
-                        <span id="info-itr" class="info-value">-</span>
-                        <input type="text" id="edit-itr" class="edit-field" style="display: none;">
-                    </div>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">CCIR:</span>
-                    <div class="info-editable">
-                        <span id="info-ccir" class="info-value">-</span>
-                        <input type="text" id="edit-ccir" class="edit-field" style="display: none;">
-                    </div>
-                </div>
-                <div class="info-buttons">
-                    <button id="btn-editar" class="action-btn">Editar Dados</button>
-                    <button id="btn-salvar" class="action-btn" style="display: none;">Salvar</button>
-                    <button id="btn-cancelar" class="action-btn" style="display: none;">Cancelar</button>
-                </div>
-                <div class="danger-zone">
-                    <button id="btn-excluir" class="danger-btn">Excluir Propriedade</button>
-                </div>
-                <div class="info-documents">
-                    <h4>Documentos</h4>
-                    <div id="documents-list">
-                        <!-- Documentos serão listados aqui -->
-                    </div>
-                </div>
+            
+            <!-- Container para controles do mapa -->
+            <div class="controls-container">
+                <!-- O botão de compartilhamento será adicionado aqui via JavaScript -->
             </div>
         </div>
         
-        <!-- Modal de confirmação para exclusão -->
-        <div id="modal-confirmacao" class="modal">
-            <div class="modal-content">
-                <h3>Confirmar Exclusão</h3>
-                <p>Tem certeza que deseja excluir esta propriedade?</p>
-                <p>Esta ação não pode ser desfeita.</p>
-                <div class="modal-buttons">
-                    <button id="btn-confirmar-exclusao" class="danger-btn">Sim, Excluir</button>
-                    <button id="btn-cancelar-exclusao" class="action-btn">Cancelar</button>
+        <div class="info-panel" id="propriedade-info" style="display: none;">
+            <div class="info-header">
+                <h2 id="info-titulo">Informações da Propriedade</h2>
+                <button id="close-info">&times;</button>
+            </div>
+            <div class="info-content">
+                <div class="info-section">
+                    <h3>Dados Gerais</h3>
+                    <div class="info-row">
+                        <span class="info-label">Nome:</span>
+                        <span id="info-nome" class="info-value" contenteditable="true"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Área Total:</span>
+                        <span id="info-area" class="info-value"></span>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>Documentação</h3>
+                    <div class="info-row">
+                        <span class="info-label">Matrícula:</span>
+                        <span id="info-matricula" class="info-value" contenteditable="true"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">CAR:</span>
+                        <span id="info-car" class="info-value" contenteditable="true"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">ITR:</span>
+                        <span id="info-itr" class="info-value" contenteditable="true"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">CCIR:</span>
+                        <span id="info-ccir" class="info-value" contenteditable="true"></span>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
     
     <footer>
-        <p>&copy; 2025 Portal do Produtor - Todos os direitos reservados</p>
+        <p>&copy; 2023 Portal do Produtor | Todos os direitos reservados</p>
     </footer>
-    
-    <!-- JavaScript principal -->
+
+    <!-- JavaScript do aplicativo -->
+    <script src="./src/js/armazenamento.js"></script>
     <script src="./src/js/app.js"></script>
-    
-    <!-- Script para edição de propriedades -->
-    <script src="./src/js/editor.js"></script>
 </body>
 </html> 

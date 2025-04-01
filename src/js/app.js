@@ -193,6 +193,24 @@ function configurarEventos() {
         document.getElementById('propriedade-info').style.display = 'none';
     });
     
+    // Botão de compartilhar mapa
+    const btnCompartilhar = document.createElement('button');
+    btnCompartilhar.id = 'btn-compartilhar';
+    btnCompartilhar.innerHTML = '<i class="fas fa-share-alt"></i> Compartilhar';
+    btnCompartilhar.className = 'btn-action';
+    btnCompartilhar.title = 'Compartilhar este mapa';
+    
+    // Inserir o botão no controle do mapa
+    const controlesContainer = document.querySelector('.controls-container');
+    if (controlesContainer) {
+        controlesContainer.appendChild(btnCompartilhar);
+    }
+    
+    // Evento do botão compartilhar
+    btnCompartilhar.addEventListener('click', () => {
+        gerarLinkCompartilhavel();
+    });
+    
     // Habilitar importação por drag-and-drop
     const mapContainer = document.getElementById('map-container');
     
@@ -496,6 +514,9 @@ function adicionarCamadaAoMapa(layer, nome, tipo) {
     if (typeof salvarDadosLocalmente === 'function') {
         setTimeout(salvarDadosLocalmente, 1000);
     }
+    
+    // Atualizar URL com os perímetros (para compartilhamento)
+    atualizarURLComPerimetros();
 }
 
 // Calcular área aproximada do polígono em hectares
@@ -611,12 +632,122 @@ window.atualizarListaPropriedades = function(propriedadeAtiva = null) {
     });
 };
 
-// Carregar dados iniciais
+// Função para gerar um link compartilhável com os perímetros
+function atualizarURLComPerimetros() {
+    try {
+        // Verificar se há propriedades para compartilhar
+        if (!window.propriedades || window.propriedades.length === 0) {
+            return;
+        }
+        
+        // Obter parâmetros atuais da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const idProdutor = urlParams.get('produtor') || 'default';
+        
+        // Criar versão compartilhável dos dados
+        const dadosCompartilhaveis = window.propriedades.map(prop => {
+            // Extrair geometria da propriedade
+            let geometria = null;
+            try {
+                if (prop.camada && prop.camada.toGeoJSON) {
+                    geometria = prop.camada.toGeoJSON().geometry;
+                }
+            } catch (e) {
+                console.error("Erro ao extrair geometria:", e);
+            }
+            
+            return {
+                id: prop.id,
+                nome: prop.nome,
+                tipo: prop.tipo,
+                area: prop.area,
+                matricula: prop.matricula,
+                car: prop.car,
+                itr: prop.itr,
+                ccir: prop.ccir,
+                geometria: geometria
+            };
+        });
+        
+        // Compactar os dados para URL
+        const dadosJSON = JSON.stringify(dadosCompartilhaveis);
+        const dadosCompactados = compactarParaURL(dadosJSON);
+        
+        // Criar nova URL com os dados
+        urlParams.set('data', dadosCompactados);
+        
+        // Atualizar URL sem recarregar a página
+        const novaURL = window.location.pathname + '?' + urlParams.toString();
+        window.history.replaceState({}, '', novaURL);
+        
+        console.log("URL atualizada com os dados dos perímetros para compartilhamento");
+    } catch (error) {
+        console.error("Erro ao atualizar URL com perímetros:", error);
+    }
+}
+
+// Função para compactar dados para URL
+function compactarParaURL(jsonString) {
+    try {
+        // Compactar usando LZ-based compression
+        return encodeURIComponent(
+            btoa(String.fromCharCode.apply(null, 
+                new Uint8Array(pako.deflate(jsonString))
+            ))
+        );
+    } catch (e) {
+        console.error("Erro ao compactar dados:", e);
+        // Fallback: usar apenas base64
+        return encodeURIComponent(btoa(jsonString));
+    }
+}
+
+// Função para descompactar dados da URL
+function descompactarDaURL(compactedString) {
+    try {
+        // Descompactar usando LZ-based decompression
+        const decoded = atob(decodeURIComponent(compactedString));
+        return pako.inflate(
+            new Uint8Array(decoded.split('').map(c => c.charCodeAt(0))), 
+            { to: 'string' }
+        );
+    } catch (e) {
+        console.error("Erro ao descompactar dados:", e);
+        // Fallback: usar apenas base64
+        try {
+            return atob(decodeURIComponent(compactedString));
+        } catch (e2) {
+            console.error("Erro ao decodificar base64:", e2);
+            return null;
+        }
+    }
+}
+
+// Carregar dados iniciais - modificar para verificar parâmetro 'data' na URL
 function carregarDadosIniciais() {
     // Verificar se há um parâmetro de produtor na URL
     const urlParams = new URLSearchParams(window.location.search);
     const idProdutor = urlParams.get('produtor');
+    const dadosURL = urlParams.get('data');
     
+    // Primeiro verificar se há dados compartilhados na URL
+    if (dadosURL) {
+        try {
+            console.log("Dados encontrados na URL, tentando carregar...");
+            const dadosJSON = descompactarDaURL(dadosURL);
+            
+            if (dadosJSON) {
+                const dadosPerimetros = JSON.parse(dadosJSON);
+                carregarPerimetrosDeDados(dadosPerimetros);
+                return; // Se conseguiu carregar da URL, não precisa verificar o resto
+            }
+        } catch (e) {
+            console.error("Erro ao carregar dados da URL:", e);
+            // Continuar para tentar outros métodos de carregamento
+        }
+    }
+    
+    // Se não tiver dados na URL, tentar carregar do arquivo KML
     if (idProdutor) {
         // Tentar carregar arquivo KML específico para este produtor
         const arquivoKML = `./src/data/produtor_${idProdutor}.kml`;
@@ -652,6 +783,127 @@ function carregarDadosIniciais() {
         console.log("Nenhum ID de produtor especificado na URL");
         // Verificar se há dados salvos localmente
         carregarDoLocalStorage();
+    }
+}
+
+// Função para carregar perímetros a partir de dados compartilhados
+function carregarPerimetrosDeDados(dados) {
+    console.log("Carregando perímetros de dados compartilhados:", dados);
+    
+    if (!dados || !Array.isArray(dados) || dados.length === 0) {
+        console.error("Dados inválidos ou vazios");
+        mostrarMensagemImportacao();
+        return;
+    }
+    
+    let sucessos = 0;
+    
+    // Processar cada propriedade nos dados
+    dados.forEach(prop => {
+        try {
+            if (prop.geometria) {
+                // Criar um objeto GeoJSON a partir da geometria
+                const feature = {
+                    type: 'Feature',
+                    properties: {
+                        name: prop.nome,
+                        MATRICULA: prop.matricula,
+                        CAR: prop.car,
+                        ITR: prop.itr,
+                        CCIR: prop.ccir
+                    },
+                    geometry: prop.geometria
+                };
+                
+                // Criar uma camada Leaflet com o GeoJSON
+                const layer = L.geoJSON(feature);
+                
+                // Adicionar a camada ao mapa - NÃO chama atualizarURLComPerimetros para evitar loop
+                layer.addTo(window.mapaAtual);
+                
+                // Adicionar interatividade e propriedades
+                layer.eachLayer(function(l) {
+                    if (l.feature) {
+                        // Configurar estilo
+                        l.setStyle({
+                            color: '#2a7e19',
+                            weight: 2,
+                            opacity: 0.7,
+                            fillColor: '#2a7e19',
+                            fillOpacity: 0.2
+                        });
+                        
+                        // Criar objeto da propriedade
+                        const propriedade = {
+                            id: prop.id || gerarId(),
+                            nome: prop.nome,
+                            camada: l,
+                            tipo: prop.tipo || 'compartilhado',
+                            area: prop.area,
+                            propriedades: feature.properties,
+                            matricula: prop.matricula || '',
+                            car: prop.car || '',
+                            itr: prop.itr || '',
+                            ccir: prop.ccir || '',
+                            documentos: []
+                        };
+                        
+                        // Adicionar ao armazenamento
+                        window.propriedades.push(propriedade);
+                        
+                        // Configurar eventos
+                        l.on({
+                            click: (e) => window.mostrarInformacoes(propriedade),
+                            mouseover: (e) => {
+                                l.setStyle({
+                                    weight: 3,
+                                    fillOpacity: 0.4
+                                });
+                            },
+                            mouseout: (e) => {
+                                if (window.camadaAtiva !== l) {
+                                    l.setStyle({
+                                        color: '#2a7e19',
+                                        weight: 2,
+                                        opacity: 0.7,
+                                        fillColor: '#2a7e19',
+                                        fillOpacity: 0.2
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                sucessos++;
+            }
+        } catch (e) {
+            console.error('Erro ao carregar propriedade compartilhada:', e);
+        }
+    });
+    
+    // Se conseguiu carregar pelo menos uma propriedade
+    if (sucessos > 0) {
+        // Ajustar o zoom para mostrar todas as camadas
+        try {
+            const grupo = L.featureGroup(window.propriedades.map(p => p.camada));
+            window.mapaAtual.fitBounds(grupo.getBounds());
+        } catch (e) {
+            console.error("Erro ao ajustar zoom:", e);
+        }
+        
+        // Atualizar a lista de propriedades
+        window.atualizarListaPropriedades();
+        
+        // Salvar localmente
+        if (typeof salvarDadosLocalmente === 'function') {
+            setTimeout(salvarDadosLocalmente, 1000);
+        }
+        
+        console.log(`${sucessos} propriedades carregadas com sucesso dos dados compartilhados.`);
+    } else {
+        console.error("Nenhuma propriedade pôde ser carregada dos dados compartilhados");
+        mostrarMensagemImportacao();
     }
 }
 
@@ -744,4 +996,90 @@ function mostrarMensagemImportacao() {
     `;
     
     console.log('Sistema pronto para importar arquivos KML, KMZ ou Shapefile.');
+}
+
+// Função para gerar link compartilhável e mostrar modal
+function gerarLinkCompartilhavel() {
+    // Verificar se há propriedades para compartilhar
+    if (!window.propriedades || window.propriedades.length === 0) {
+        alert('Não há propriedades para compartilhar. Importe pelo menos uma propriedade primeiro.');
+        return;
+    }
+    
+    // Forçar atualização da URL com os perímetros
+    atualizarURLComPerimetros();
+    
+    // Obter a URL atual
+    const urlAtual = window.location.href;
+    
+    // Criar modal para compartilhamento
+    const modal = document.createElement('div');
+    modal.className = 'modal-compartilhar';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Compartilhar Mapa</h2>
+            <p>Copie o link abaixo para compartilhar este mapa com todas as propriedades:</p>
+            <div class="url-container">
+                <input type="text" id="url-compartilhavel" value="${urlAtual}" readonly>
+                <button id="copiar-url">Copiar</button>
+            </div>
+            <p class="copy-message" id="copy-success" style="display:none;">Link copiado com sucesso!</p>
+            <div class="share-options">
+                <p>Ou compartilhe diretamente:</p>
+                <button id="share-whatsapp" class="share-button whatsapp">
+                    <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
+                <button id="share-email" class="share-button email">
+                    <i class="fas fa-envelope"></i> Email
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar o modal ao corpo do documento
+    document.body.appendChild(modal);
+    
+    // Mostrar o modal
+    setTimeout(() => {
+        modal.style.display = 'flex';
+    }, 100);
+    
+    // Botão de fechar
+    const closeBtn = modal.querySelector('.close-modal');
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    });
+    
+    // Botão de copiar URL
+    const copyBtn = modal.querySelector('#copiar-url');
+    copyBtn.addEventListener('click', () => {
+        const urlInput = modal.querySelector('#url-compartilhavel');
+        urlInput.select();
+        document.execCommand('copy');
+        
+        // Mostrar mensagem de sucesso
+        const copyMsg = modal.querySelector('#copy-success');
+        copyMsg.style.display = 'block';
+        setTimeout(() => {
+            copyMsg.style.display = 'none';
+        }, 2000);
+    });
+    
+    // Botão de compartilhar via WhatsApp
+    const whatsappBtn = modal.querySelector('#share-whatsapp');
+    whatsappBtn.addEventListener('click', () => {
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('Confira este mapa de propriedades: ' + urlAtual)}`;
+        window.open(whatsappUrl, '_blank');
+    });
+    
+    // Botão de compartilhar via Email
+    const emailBtn = modal.querySelector('#share-email');
+    emailBtn.addEventListener('click', () => {
+        const emailUrl = `mailto:?subject=${encodeURIComponent('Mapa de Propriedades')}&body=${encodeURIComponent('Confira este mapa de propriedades: ' + urlAtual)}`;
+        window.location.href = emailUrl;
+    });
 } 

@@ -219,101 +219,233 @@
     
     <!-- Script para iniciar manualmente -->
     <script>
+        // Função para processar arquivos importados
+        window.processarArquivosImportados = function(files) {
+            if (!files || files.length === 0) return;
+            console.log("Processando arquivos:", files);
+            
+            // Converter FileList para Array
+            const filesArray = Array.from(files);
+            
+            // Processar cada arquivo
+            filesArray.forEach(file => {
+                const fileName = file.name.toLowerCase();
+                
+                // Verificar tipo de arquivo
+                if (fileName.endsWith('.kml')) {
+                    window.processarArquivoKML(file);
+                } else if (fileName.endsWith('.kmz')) {
+                    window.processarArquivoKMZ(file);
+                } else if (fileName.endsWith('.zip') || fileName.endsWith('.shp')) {
+                    window.processarArquivoShapefile(file);
+                } else {
+                    alert(`Tipo de arquivo não suportado: ${file.name}`);
+                }
+            });
+        };
+        
+        // Tornar global a função de processamento de KML
+        window.processarArquivoKML = function(file) {
+            console.log("Processando arquivo KML:", file.name);
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // Verificar se omnivore está disponível
+                    if (typeof omnivore === 'undefined') {
+                        throw new Error("Biblioteca Omnivore não carregada.");
+                    }
+                    
+                    // Usar Leaflet-Omnivore para processar o KML
+                    const kmlLayer = omnivore.kml.parse(e.target.result);
+                    
+                    // Adicionar camada ao mapa
+                    window.adicionarCamadaAoMapa(kmlLayer, file.name, 'kml');
+                } catch (error) {
+                    console.error('Erro ao processar arquivo KML:', error);
+                    alert(`Erro ao processar arquivo KML: ${file.name}\nDetalhes: ${error.message}`);
+                }
+            };
+            
+            reader.readAsText(file);
+        };
+        
+        // Tornar global a função de processamento de KMZ
+        window.processarArquivoKMZ = function(file) {
+            console.log("Processando arquivo KMZ:", file.name);
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // Verificar se JSZip está disponível
+                    if (typeof JSZip === 'undefined') {
+                        throw new Error("Biblioteca JSZip não carregada.");
+                    }
+                    
+                    // Verificar se omnivore está disponível
+                    if (typeof omnivore === 'undefined') {
+                        throw new Error("Biblioteca Omnivore não carregada.");
+                    }
+                    
+                    // Usar JSZip para descompactar o KMZ
+                    const zip = new JSZip();
+                    
+                    zip.loadAsync(e.target.result)
+                        .then(function(conteudo) {
+                            // Procurar pelo arquivo .kml dentro do KMZ
+                            let kmlEncontrado = false;
+                            
+                            // Iterar sobre os arquivos no ZIP
+                            Object.keys(conteudo.files).forEach(function(filename) {
+                                if (filename.toLowerCase().endsWith('.kml')) {
+                                    kmlEncontrado = true;
+                                    
+                                    // Extrair o conteúdo do KML
+                                    zip.file(filename).async("string").then(function(kmlString) {
+                                        // Processar o KML
+                                        const kmlLayer = omnivore.kml.parse(kmlString);
+                                        window.adicionarCamadaAoMapa(kmlLayer, file.name, 'kmz');
+                                    });
+                                }
+                            });
+                            
+                            if (!kmlEncontrado) {
+                                throw new Error('Nenhum arquivo KML encontrado dentro do KMZ');
+                            }
+                        })
+                        .catch(function(error) {
+                            console.error('Erro ao processar arquivo KMZ:', error);
+                            alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
+                        });
+                } catch (error) {
+                    console.error('Erro ao processar arquivo KMZ:', error);
+                    alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        };
+        
+        // Tornar global a função de processamento de Shapefile
+        window.processarArquivoShapefile = function(file) {
+            console.log("Processando arquivo Shapefile:", file.name);
+            // Shapefile geralmente vem em um ZIP ou conjunto de arquivos
+            if (file.name.endsWith('.zip')) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        // Verificar se biblioteca shp está disponível
+                        if (typeof shp === 'undefined') {
+                            throw new Error("Biblioteca de processamento Shapefile não carregada.");
+                        }
+                        
+                        // Usar shp.js para processar o shapefile
+                        shp(e.target.result)
+                            .then(function(geojson) {
+                                // Converter GeoJSON para camada Leaflet
+                                const shpLayer = L.geoJSON(geojson, {
+                                    style: {
+                                        color: '#2a7e19',
+                                        weight: 2,
+                                        opacity: 0.7,
+                                        fillColor: '#2a7e19',
+                                        fillOpacity: 0.2
+                                    },
+                                    onEachFeature: function(feature, layer) {
+                                        // Adicionar informações e eventos para cada feature
+                                        const props = feature.properties || {};
+                                        
+                                        // Criar objeto da propriedade
+                                        const propriedade = {
+                                            id: window.gerarId(),
+                                            nome: props.name || props.Nome || file.name.replace(/\.[^/.]+$/, ""),
+                                            camada: layer,
+                                            tipo: 'shp',
+                                            area: window.calcularAreaGeoJSON ? window.calcularAreaGeoJSON(feature) : "N/A",
+                                            propriedades: props,
+                                            // Campos para documentos
+                                            matricula: props.MATRICULA || props.Matricula || '',
+                                            car: props.CAR || '',
+                                            itr: props.ITR || '',
+                                            ccir: props.CCIR || '',
+                                            documentos: []
+                                        };
+                                        
+                                        // Adicionar ao armazenamento
+                                        window.propriedades.push(propriedade);
+                                        
+                                        // Configurar eventos
+                                        layer.on({
+                                            click: (e) => window.mostrarInformacoes(propriedade),
+                                            mouseover: (e) => {
+                                                layer.setStyle({
+                                                    weight: 3,
+                                                    fillOpacity: 0.4
+                                                });
+                                            },
+                                            mouseout: (e) => {
+                                                if (window.camadaAtiva !== layer) {
+                                                    shpLayer.resetStyle(layer);
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                                
+                                // Adicionar camada ao mapa
+                                shpLayer.addTo(window.mapaAtual);
+                                
+                                // Ajustar o zoom para mostrar a nova camada
+                                window.mapaAtual.fitBounds(shpLayer.getBounds());
+                                
+                                // Atualizar a lista de propriedades
+                                window.atualizarListaPropriedades();
+                            })
+                            .catch(function(error) {
+                                console.error('Erro ao processar Shapefile:', error);
+                                alert(`Erro ao processar Shapefile: ${file.name}\nDetalhes: ${error.message}`);
+                            });
+                    } catch (error) {
+                        console.error('Erro ao processar Shapefile:', error);
+                        alert(`Erro ao processar Shapefile: ${file.name}\nDetalhes: ${error.message}`);
+                    }
+                };
+                
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert('Para processar arquivos Shapefile, importe o arquivo .zip contendo todos os componentes do shapefile.');
+            }
+        };
+        
+        // Calcular área aproximada do polígono GeoJSON em hectares
+        window.calcularAreaGeoJSON = function(feature) {
+            try {
+                if (feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
+                    // Converter o GeoJSON para objeto Leaflet para usar GeometryUtil
+                    const tempLayer = L.geoJSON(feature);
+                    const layers = [];
+                    tempLayer.eachLayer(l => layers.push(l));
+                    
+                    if (layers.length > 0) {
+                        const areaEmM2 = L.GeometryUtil.geodesicArea(layers[0].getLatLngs()[0]);
+                        return (areaEmM2 / 10000).toFixed(2);
+                    }
+                }
+            } catch (e) {
+                console.warn("Não foi possível calcular área do GeoJSON:", e);
+            }
+            return "N/A";
+        };
+    
         window.iniciarAplicacaoManualmente = function() {
+            console.log("Iniciando aplicação manualmente...");
+            
             // Esconder o loader
             var loader = document.getElementById('loading-indicator');
             if (loader) {
                 loader.style.display = 'none';
             }
-            
-            // Criar o conteúdo principal do aplicativo
-            var mainContent = document.createElement('div');
-            mainContent.id = 'app-container';
-            mainContent.innerHTML = `
-                <header>
-                    <h1>Portal do Produtor</h1>
-                    <nav>
-                        <ul>
-                            <li><a href="#" class="active">Mapa de Propriedades</a></li>
-                            <li><a href="#">Importar Arquivos</a></li>
-                            <li><a href="#">Ajuda</a></li>
-                        </ul>
-                    </nav>
-                </header>
-                
-                <main>
-                    <div class="sidebar">
-                        <div class="propriedades-lista">
-                            <h2>Propriedades</h2>
-                            <div id="lista-propriedades">
-                                <!-- Lista de propriedades será carregada dinamicamente -->
-                                <div class="info-message">
-                                    <p>Clique no botão "Importar Arquivos" para adicionar suas propriedades.</p>
-                                </div>
-                            </div>
-                            <div class="import-controls">
-                                <button id="btn-importar">Importar Arquivos</button>
-                                <input type="file" id="file-input" accept=".kml,.kmz,.shp,.zip" multiple style="display: none;">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="map-container">
-                        <div id="map"></div>
-                        
-                        <!-- Container para controles do mapa -->
-                        <div class="controls-container">
-                            <!-- O botão de compartilhamento será adicionado aqui via JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <div class="info-panel" id="propriedade-info" style="display: none;">
-                        <div class="info-header">
-                            <h2 id="info-titulo">Informações da Propriedade</h2>
-                            <button id="close-info">&times;</button>
-                        </div>
-                        <div class="info-content">
-                            <div class="info-section">
-                                <h3>Dados Gerais</h3>
-                                <div class="info-row">
-                                    <span class="info-label">Nome:</span>
-                                    <span id="info-nome" class="info-value" contenteditable="true"></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="info-label">Área Total:</span>
-                                    <span id="info-area" class="info-value"></span>
-                                </div>
-                            </div>
-                            
-                            <div class="info-section">
-                                <h3>Documentação</h3>
-                                <div class="info-row">
-                                    <span class="info-label">Matrícula:</span>
-                                    <span id="info-matricula" class="info-value" contenteditable="true"></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="info-label">CAR:</span>
-                                    <span id="info-car" class="info-value" contenteditable="true"></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="info-label">ITR:</span>
-                                    <span id="info-itr" class="info-value" contenteditable="true"></span>
-                                </div>
-                                <div class="info-row">
-                                    <span class="info-label">CCIR:</span>
-                                    <span id="info-ccir" class="info-value" contenteditable="true"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-                
-                <footer>
-                    <p>&copy; 2023 Portal do Produtor | Todos os direitos reservados</p>
-                </footer>
-            `;
-            
-            document.body.appendChild(mainContent);
             
             // Inicializar o aplicativo apenas se o Leaflet estiver disponível
             if (typeof L !== 'undefined') {
@@ -332,26 +464,105 @@
                         maxZoom: 19
                     }).addTo(window.mapaAtual);
                     
-                    // Configurar eventos
-                    if (typeof window.configurarEventos === 'function') {
-                        window.configurarEventos();
-                    } else {
-                        console.warn("Função configurarEventos não encontrada");
-                        // Configuração básica mínima
-                        var btnImportar = document.getElementById('btn-importar');
-                        var fileInput = document.getElementById('file-input');
+                    // Configurar eventos manualmente
+                    console.log("Configurando eventos da interface...");
+                    
+                    // Botão de importar arquivos
+                    var btnImportar = document.getElementById('btn-importar');
+                    var fileInput = document.getElementById('file-input');
+                    
+                    if (btnImportar && fileInput) {
+                        console.log("Configurando botão de importação...");
                         
-                        if (btnImportar && fileInput) {
-                            btnImportar.addEventListener('click', function() {
-                                fileInput.click();
-                            });
-                        }
+                        btnImportar.addEventListener('click', function() {
+                            console.log("Botão Importar clicado");
+                            fileInput.click();
+                        });
+                        
+                        fileInput.addEventListener('change', function(e) {
+                            console.log("Arquivos selecionados:", e.target.files);
+                            if (typeof window.processarArquivosImportados === 'function') {
+                                window.processarArquivosImportados(e.target.files);
+                            } else {
+                                console.error("Função processarArquivosImportados não encontrada");
+                                alert("Erro: função de processamento não encontrada");
+                            }
+                        });
                     }
                     
-                    // Carregar dados
+                    // Botão de fechar painel de informações
+                    var btnFechar = document.getElementById('close-info');
+                    if (btnFechar) {
+                        btnFechar.addEventListener('click', function() {
+                            var painel = document.getElementById('propriedade-info');
+                            if (painel) painel.style.display = 'none';
+                        });
+                    }
+                    
+                    // Botão de compartilhar mapa
+                    var btnCompartilhar = document.createElement('button');
+                    btnCompartilhar.id = 'btn-compartilhar';
+                    btnCompartilhar.innerHTML = '<i class="fas fa-share-alt"></i> Compartilhar';
+                    btnCompartilhar.className = 'btn-action';
+                    btnCompartilhar.title = 'Compartilhar este mapa';
+                    
+                    // Inserir o botão no controle do mapa
+                    var controlesContainer = document.querySelector('.controls-container');
+                    if (controlesContainer) {
+                        controlesContainer.appendChild(btnCompartilhar);
+                        
+                        // Evento do botão compartilhar
+                        btnCompartilhar.addEventListener('click', function() {
+                            if (typeof window.gerarLinkCompartilhavel === 'function') {
+                                window.gerarLinkCompartilhavel();
+                            } else {
+                                console.error("Função gerarLinkCompartilhavel não encontrada");
+                                alert("Erro: função de compartilhamento não encontrada");
+                            }
+                        });
+                    }
+                    
+                    // Habilitar importação por drag-and-drop
+                    var mapContainer = document.getElementById('map-container');
+                    if (mapContainer) {
+                        // Eventos de arrastar e soltar para o mapa
+                        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
+                            mapContainer.addEventListener(eventName, function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }, false);
+                        });
+                        
+                        // Destacar área quando arquivos são arrastados sobre o mapa
+                        ['dragenter', 'dragover'].forEach(function(eventName) {
+                            mapContainer.addEventListener(eventName, function() {
+                                mapContainer.classList.add('highlight-drop');
+                            }, false);
+                        });
+                        
+                        ['dragleave', 'drop'].forEach(function(eventName) {
+                            mapContainer.addEventListener(eventName, function() {
+                                mapContainer.classList.remove('highlight-drop');
+                            }, false);
+                        });
+                        
+                        // Processar arquivos quando forem soltos no mapa
+                        mapContainer.addEventListener('drop', function(e) {
+                            var dt = e.dataTransfer;
+                            var files = dt.files;
+                            
+                            if (typeof window.processarArquivosImportados === 'function') {
+                                window.processarArquivosImportados(files);
+                            }
+                        }, false);
+                    }
+                    
+                    // Carregar dados iniciais
                     if (typeof window.carregarDadosIniciais === 'function') {
                         window.carregarDadosIniciais();
                     }
+                    
+                    console.log("Inicialização manual concluída com sucesso.");
                 } catch (error) {
                     console.error("Erro ao inicializar o mapa:", error);
                     alert("Erro ao inicializar o mapa: " + error.message);
@@ -375,6 +586,27 @@
                 `;
             }
         };
+        
+        // Iniciar a aplicação quando o documento estiver carregado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM carregado, tentando iniciar aplicação...");
+            // Verificar se as bibliotecas necessárias estão carregadas
+            if (typeof L !== 'undefined') {
+                setTimeout(window.iniciarAplicacaoManualmente, 500);
+            } else {
+                console.log("Leaflet não está carregado, aguardando...");
+                setTimeout(function() {
+                    if (typeof L !== 'undefined') {
+                        window.iniciarAplicacaoManualmente();
+                    } else {
+                        console.error("Leaflet não foi carregado após espera");
+                        document.getElementById('error-message').innerHTML = 
+                            "Erro: A biblioteca de mapas não foi carregada. Verifique sua conexão com a internet.";
+                        document.getElementById('error-message').style.display = 'block';
+                    }
+                }, 2000);
+            }
+        });
     </script>
 </body>
 </html> 

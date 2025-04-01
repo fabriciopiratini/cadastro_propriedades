@@ -10,7 +10,7 @@ const STORAGE_KEY = 'portal_produtor_propriedades';
  * Verifica se o localStorage está disponível
  * @returns {boolean} true se o localStorage estiver disponível
  */
-function verificarLocalStorage() {
+window.verificarLocalStorage = function() {
     try {
         const test = 'test';
         localStorage.setItem(test, test);
@@ -20,14 +20,14 @@ function verificarLocalStorage() {
         console.error('localStorage não está disponível:', e);
         return false;
     }
-}
+};
 
 /**
  * Salva dados das propriedades no localStorage
  */
-function salvarDadosLocalmente() {
+window.salvarDadosLocalmente = function() {
     // Verificar se localStorage está disponível
-    if (!verificarLocalStorage()) {
+    if (!window.verificarLocalStorage()) {
         console.error('Não foi possível salvar dados localmente - localStorage não disponível');
         return false;
     }
@@ -85,15 +85,15 @@ function salvarDadosLocalmente() {
         console.error('Erro ao salvar propriedades localmente:', error);
         return false;
     }
-}
+};
 
 /**
  * Carrega dados das propriedades do localStorage
  * @returns {Array} Array de propriedades ou array vazio se nada for encontrado
  */
-function carregarDadosLocais() {
+window.carregarDadosLocais = function() {
     // Verificar se localStorage está disponível
-    if (!verificarLocalStorage()) {
+    if (!window.verificarLocalStorage()) {
         console.error('Não foi possível carregar dados locais - localStorage não disponível');
         return [];
     }
@@ -116,14 +116,14 @@ function carregarDadosLocais() {
         console.error('Erro ao carregar propriedades do localStorage:', error);
         return [];
     }
-}
+};
 
 /**
  * Limpa todos os dados armazenados localmente
  */
-function limparDadosLocais() {
+window.limparDadosLocais = function() {
     // Verificar se localStorage está disponível
-    if (!verificarLocalStorage()) {
+    if (!window.verificarLocalStorage()) {
         console.error('Não foi possível limpar dados locais - localStorage não disponível');
         return false;
     }
@@ -136,12 +136,12 @@ function limparDadosLocais() {
         console.error('Erro ao limpar dados locais:', error);
         return false;
     }
-}
+};
 
 /**
  * Exporta os dados das propriedades como arquivo JSON
  */
-function exportarDados() {
+window.exportarDados = function() {
     try {
         // Verificar se há propriedades para exportar
         if (!window.propriedades || window.propriedades.length === 0) {
@@ -202,13 +202,13 @@ function exportarDados() {
         alert('Erro ao exportar dados: ' + error.message);
         return false;
     }
-}
+};
 
 /**
  * Gera uma URL compartilhável com todas as propriedades
  * @returns {string} URL para compartilhamento ou null em caso de erro
  */
-function gerarURLCompartilhavel() {
+window.gerarURLCompartilhavel = function() {
     try {
         // Verificar se há propriedades para compartilhar
         if (!window.propriedades || window.propriedades.length === 0) {
@@ -248,32 +248,24 @@ function gerarURLCompartilhavel() {
                 const dadosCompactados = window.compactarParaURL(jsonString);
                 
                 // Criar URL com parâmetros
-                const url = new URL(window.location.href);
-                url.searchParams.set('data', dadosCompactados);
+                const urlBase = window.location.href.split('?')[0];
+                const urlCompartilhavel = `${urlBase}?data=${dadosCompactados}`;
                 
-                return url.toString();
+                console.log('URL compartilhável gerada com sucesso');
+                return urlCompartilhavel;
             } catch (e) {
                 console.error('Erro ao compactar dados para URL:', e);
-                // Fallback: codificação básica
-                const encoded = encodeURIComponent(btoa(jsonString));
-                const url = new URL(window.location.href);
-                url.searchParams.set('data', encoded);
-                return url.toString();
+                return null;
             }
         } else {
-            // Fallback simples de codificação para URL
-            const encoded = encodeURIComponent(btoa(jsonString));
-            
-            const url = new URL(window.location.href);
-            url.searchParams.set('data', encoded);
-            
-            return url.toString();
+            console.error('Função compactarParaURL não disponível');
+            return null;
         }
     } catch (error) {
         console.error('Erro ao gerar URL compartilhável:', error);
         return null;
     }
-}
+};
 
 // Auto-salvar quando propriedades são modificadas
 document.addEventListener('DOMContentLoaded', () => {
@@ -282,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-salvar periodicamente (a cada 30 segundos)
     setInterval(() => {
         if (window.propriedades && window.propriedades.length > 0) {
-            salvarDadosLocalmente();
+            window.salvarDadosLocalmente();
         }
     }, 30000);
 }); 

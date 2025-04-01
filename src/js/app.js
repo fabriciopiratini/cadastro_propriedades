@@ -356,6 +356,11 @@ function adicionarCamadaAoMapa(layer, nome, tipo) {
     
     // Atualizar a lista de propriedades
     atualizarListaPropriedades();
+    
+    // Auto-salvar os dados
+    if (typeof salvarDadosLocalmente === 'function') {
+        setTimeout(salvarDadosLocalmente, 1000);
+    }
 }
 
 // Calcular área aproximada do polígono em hectares
@@ -485,17 +490,96 @@ function carregarDadosIniciais() {
                     console.log(`Dados do produtor ${idProdutor} carregados com sucesso.`);
                 } catch (error) {
                     console.error('Erro ao processar KML:', error);
-                    mostrarMensagemImportacao();
+                    // Tentar carregar do localStorage
+                    carregarDoLocalStorage();
                 }
             })
             .catch(error => {
                 console.error('Erro ao carregar arquivo KML:', error);
-                mostrarMensagemImportacao();
+                // Tentar carregar do localStorage
+                carregarDoLocalStorage();
             });
     } else {
-        // Mostrar mensagem para importar arquivos
-        mostrarMensagemImportacao();
+        // Verificar se há dados salvos localmente
+        carregarDoLocalStorage();
     }
+}
+
+// Tentar carregar do localStorage
+function carregarDoLocalStorage() {
+    // Verifica se a função de carregamento local existe
+    if (typeof carregarDadosLocais === 'function') {
+        const dadosSalvos = carregarDadosLocais();
+        
+        if (dadosSalvos && dadosSalvos.length > 0) {
+            console.log('Carregando propriedades do localStorage');
+            
+            // Tentar recriar as propriedades a partir dos dados salvos
+            dadosSalvos.forEach(prop => {
+                try {
+                    if (prop.geometria) {
+                        // Tentar recriar a geometria
+                        const geometria = JSON.parse(prop.geometria);
+                        
+                        // Criar um objeto GeoJSON para o polígono
+                        let coords;
+                        
+                        // Verificar a estrutura dos dados
+                        if (Array.isArray(geometria) && geometria.length > 0) {
+                            if (Array.isArray(geometria[0]) && geometria[0].length > 0) {
+                                if (typeof geometria[0][0] === 'object' && 'lat' in geometria[0][0]) {
+                                    // Converter formato LatLng para coordenadas [lng, lat]
+                                    coords = geometria[0].map(pt => [pt.lng, pt.lat]);
+                                } else {
+                                    coords = geometria[0];
+                                }
+                            } else {
+                                coords = geometria;
+                            }
+                        } else {
+                            console.error('Formato de geometria não reconhecido:', geometria);
+                            return;
+                        }
+                        
+                        // Criar um objeto "feature" GeoJSON
+                        const feature = {
+                            type: 'Feature',
+                            properties: {
+                                name: prop.nome,
+                                MATRICULA: prop.matricula,
+                                CAR: prop.car,
+                                ITR: prop.itr,
+                                CCIR: prop.ccir
+                            },
+                            geometry: {
+                                type: 'Polygon',
+                                coordinates: [coords]
+                            }
+                        };
+                        
+                        // Adicionar a camada ao mapa
+                        const layer = L.geoJSON(feature);
+                        adicionarCamadaAoMapa(layer, prop.nome, prop.tipo || 'local');
+                        
+                        // Tentar associar o ID original
+                        const propriedadeRecriada = window.propriedades.find(p => p.nome === prop.nome);
+                        if (propriedadeRecriada) {
+                            propriedadeRecriada.id = prop.id;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erro ao recriar propriedade:', e);
+                }
+            });
+            
+            if (window.propriedades.length > 0) {
+                return;
+            }
+        }
+    }
+    
+    // Se nenhum dado for encontrado ou a recriação falhar, mostrar mensagem
+    mostrarMensagemImportacao();
 }
 
 // Mostrar mensagem de importação

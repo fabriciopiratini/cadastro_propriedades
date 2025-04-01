@@ -120,6 +120,10 @@ function obterPropriedadeAtiva() {
 
 // Salvar dados no localStorage
 function salvarDadosLocalmente() {
+    // Obter o ID do produtor da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const idProdutor = urlParams.get('produtor') || 'default';
+    
     // Cria uma versão simplificada das propriedades para armazenamento
     const dadosSalvos = window.propriedades.map(p => ({
         id: p.id,
@@ -128,36 +132,112 @@ function salvarDadosLocalmente() {
         car: p.car,
         itr: p.itr,
         ccir: p.ccir,
-        area: p.area
-        // Não podemos armazenar objetos completos como camada
+        area: p.area,
+        // Dados geométricos básicos para tentar reconstruir a camada
+        tipo: p.tipo,
+        geometria: salvarGeometria(p.camada)
     }));
     
     try {
-        localStorage.setItem('propriedadesSalvas', JSON.stringify(dadosSalvos));
+        // Salvar vinculado ao ID do produtor
+        localStorage.setItem(`propriedades_${idProdutor}`, JSON.stringify(dadosSalvos));
+        console.log(`Dados do produtor ${idProdutor} salvos localmente`);
     } catch (error) {
         console.error('Erro ao salvar dados localmente:', error);
     }
 }
 
+// Salvar informações básicas de geometria
+function salvarGeometria(camada) {
+    try {
+        if (camada && camada.getLatLngs) {
+            // Tentar salvar os pontos do polígono
+            const latlngs = camada.getLatLngs();
+            if (latlngs && latlngs.length > 0) {
+                // Converter LatLng para arrays simples [lng, lat]
+                const coordSimples = converterParaCoordenadas(latlngs);
+                return JSON.stringify(coordSimples);
+            }
+        } else if (camada && camada.toGeoJSON) {
+            // Alternativa: salvar como GeoJSON
+            const geoJson = camada.toGeoJSON();
+            if (geoJson && geoJson.geometry && geoJson.geometry.coordinates) {
+                return JSON.stringify(geoJson.geometry.coordinates);
+            }
+        }
+        return null;
+    } catch (e) {
+        console.warn('Não foi possível salvar a geometria:', e);
+        return null;
+    }
+}
+
+// Converter estrutura LatLng do Leaflet para arrays [lng, lat]
+function converterParaCoordenadas(latlngs) {
+    // Verificar se é um array aninhado
+    if (Array.isArray(latlngs) && latlngs.length > 0) {
+        if (latlngs[0] instanceof L.LatLng) {
+            // Array de LatLng
+            return latlngs.map(ponto => [ponto.lng, ponto.lat]);
+        } else if (Array.isArray(latlngs[0])) {
+            // Array aninhado, processar recursivamente
+            return latlngs.map(subArray => converterParaCoordenadas(subArray));
+        }
+    }
+    return latlngs;
+}
+
 // Carregar dados do localStorage
 function carregarDadosLocais() {
     try {
-        const dadosSalvos = localStorage.getItem('propriedadesSalvas');
+        // Obter o ID do produtor da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const idProdutor = urlParams.get('produtor') || 'default';
+        
+        const chaveDados = `propriedades_${idProdutor}`;
+        const dadosSalvos = localStorage.getItem(chaveDados);
+        
         if (dadosSalvos) {
             const dados = JSON.parse(dadosSalvos);
+            console.log(`Dados salvos encontrados para o produtor ${idProdutor}:`, dados);
             
-            // Atualizar as propriedades carregadas com dados salvos
-            dados.forEach(dadoSalvo => {
-                const propriedade = window.propriedades.find(p => p.id === dadoSalvo.id);
-                if (propriedade) {
-                    propriedade.matricula = dadoSalvo.matricula;
-                    propriedade.car = dadoSalvo.car;
-                    propriedade.itr = dadoSalvo.itr;
-                    propriedade.ccir = dadoSalvo.ccir;
+            // Se já existem propriedades carregadas, atualizar os dados
+            if (window.propriedades && window.propriedades.length > 0) {
+                dados.forEach(dadoSalvo => {
+                    const propriedade = window.propriedades.find(p => p.id === dadoSalvo.id);
+                    if (propriedade) {
+                        propriedade.matricula = dadoSalvo.matricula || '';
+                        propriedade.car = dadoSalvo.car || '';
+                        propriedade.itr = dadoSalvo.itr || '';
+                        propriedade.ccir = dadoSalvo.ccir || '';
+                    }
+                });
+                
+                // Atualizar visualização se uma propriedade estiver sendo mostrada
+                if (window.camadaAtiva) {
+                    const propAtiva = window.propriedades.find(p => p.camada === window.camadaAtiva);
+                    if (propAtiva) {
+                        atualizarVisualizacaoPropriedade(propAtiva);
+                    }
                 }
-            });
+            } else {
+                // Se não há propriedades carregadas, tenta recriá-las a partir dos dados salvos
+                console.log('Tentando recriar propriedades a partir dos dados salvos');
+                return dados; // Retorna os dados para serem usados em app.js
+            }
+        } else {
+            console.log(`Nenhum dado salvo encontrado para o produtor ${idProdutor}`);
         }
     } catch (error) {
         console.error('Erro ao carregar dados locais:', error);
     }
+    return null;
+}
+
+// Atualizar visualização de uma propriedade
+function atualizarVisualizacaoPropriedade(propriedade) {
+    document.getElementById('info-matricula').textContent = propriedade.matricula || 'Não informado';
+    document.getElementById('info-car').textContent = propriedade.car || 'Não informado';
+    document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
+    document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
 } 

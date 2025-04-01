@@ -9,25 +9,50 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Log do URL atual
     console.log("URL atual:", window.location.href);
+    console.log("Hostname:", window.location.hostname);
+    console.log("Protocol:", window.location.protocol);
+    console.log("UserAgent:", navigator.userAgent);
+    
+    // Verificar o suporte do navegador
+    verificarNavegador();
     
     // Verificar conexão com a internet
     verificarConexao();
     
     // Verificar se as bibliotecas estão carregadas
-    verificarBibliotecas();
+    const bibliotecasOk = verificarBibliotecas();
     
-    // Inicializar componentes
-    inicializarMapa();
-    configurarEventos();
-    carregarDadosIniciais();
-    
-    // Carregar dados salvos localmente (se houver)
-    if (typeof carregarDadosLocais === 'function') {
-        carregarDadosLocais();
+    // Só inicializa se as bibliotecas estiverem disponíveis
+    if (bibliotecasOk) {
+        try {
+            // Inicializar componentes
+            inicializarMapa();
+            configurarEventos();
+            carregarDadosIniciais();
+            
+            // Carregar dados salvos localmente (se houver)
+            if (typeof carregarDadosLocais === 'function') {
+                carregarDadosLocais();
+            } else {
+                console.warn("A função carregarDadosLocais não está disponível!");
+            }
+        } catch (error) {
+            console.error("Erro na inicialização da aplicação:", error);
+            mostrarErroInicializacao(error);
+        }
     } else {
-        console.warn("A função carregarDadosLocais não está disponível!");
+        mostrarErroInicializacao("Bibliotecas necessárias não encontradas");
     }
 });
+
+// Verificar o suporte do navegador
+function verificarNavegador() {
+    // Verificar se o navegador é muito antigo
+    if (!window.localStorage || !window.fetch) {
+        alert("Seu navegador parece ser muito antigo. Algumas funcionalidades podem não funcionar corretamente. Recomendamos usar Chrome, Firefox, Edge ou Safari em suas versões mais recentes.");
+        console.warn("Navegador antigo detectado: sem suporte a localStorage ou fetch");
+    }
+}
 
 // Verificar conexão com a internet
 function verificarConexao() {
@@ -74,34 +99,78 @@ function verificarBibliotecas() {
         }
     });
     
+    // Tentar carregar localmente os arquivos se não estiverem disponíveis
     if (!todasCarregadas) {
-        alert("Algumas bibliotecas necessárias não foram carregadas. O aplicativo pode não funcionar corretamente. Tente recarregar a página.");
+        console.warn("Algumas bibliotecas não foram carregadas. Tentando carregar de fontes alternativas...");
     }
     
     return todasCarregadas;
 }
 
+// Mostrar erro de inicialização
+function mostrarErroInicializacao(erro) {
+    document.body.innerHTML = `
+        <div style="padding: 20px; max-width: 600px; margin: 0 auto; text-align: center; font-family: sans-serif;">
+            <h1 style="color: #2a7e19;">Portal do Produtor</h1>
+            <div style="padding: 20px; background-color: #f8f8f8; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h2 style="color: #e63946;">Não foi possível carregar o aplicativo</h2>
+                <p>Ocorreu um erro ao inicializar o aplicativo. Por favor, tente as seguintes soluções:</p>
+                <ul style="text-align: left; padding-left: 30px;">
+                    <li>Atualize a página (pressione F5 ou clique em recarregar)</li>
+                    <li>Verifique sua conexão com a internet</li>
+                    <li>Limpe o cache do seu navegador</li>
+                    <li>Tente usar outro navegador (Chrome, Firefox, Edge)</li>
+                </ul>
+                <p style="margin-top: 20px;">
+                    <button onclick="location.reload()" style="padding: 10px 20px; background-color: #2a7e19; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Recarregar Página
+                    </button>
+                </p>
+                <p style="font-size: 0.8rem; color: #666; margin-top: 20px;">
+                    Detalhes técnicos: ${erro}
+                </p>
+            </div>
+        </div>
+    `;
+}
+
 // Função para inicializar o mapa Leaflet
 function inicializarMapa() {
-    // Criar o mapa com visão inicial do Brasil
-    window.mapaAtual = L.map('map', {
-        center: [-15.7801, -47.9292], // Centro aproximado do Brasil
-        zoom: 5,
-        minZoom: 3,
-        maxZoom: 19
-    });
+    try {
+        // Criar o mapa com visão inicial do Brasil
+        window.mapaAtual = L.map('map', {
+            center: [-15.7801, -47.9292], // Centro aproximado do Brasil
+            zoom: 5,
+            minZoom: 3,
+            maxZoom: 19
+        });
 
-    // Adicionar camada base de imagens de satélite do Google
-    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google',
-        maxZoom: 19
-    }).addTo(window.mapaAtual);
+        // Tentar adicionar camada base do Google Maps
+        try {
+            L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google',
+                maxZoom: 19
+            }).addTo(window.mapaAtual);
+        } catch (e) {
+            console.error("Erro ao carregar mapa do Google, tentando OpenStreetMap:", e);
+            
+            // Fallback para OpenStreetMap se o Google Maps falhar
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(window.mapaAtual);
+        }
 
-    // Adicionar escala
-    L.control.scale({
-        imperial: false,
-        maxWidth: 200
-    }).addTo(window.mapaAtual);
+        // Adicionar escala
+        L.control.scale({
+            imperial: false,
+            maxWidth: 200
+        }).addTo(window.mapaAtual);
+        
+    } catch (error) {
+        console.error("Erro ao inicializar o mapa:", error);
+        throw new Error("Não foi possível inicializar o mapa. Erro: " + error.message);
+    }
 }
 
 // Configurar eventos da interface

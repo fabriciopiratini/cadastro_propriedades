@@ -62,14 +62,229 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
     
-    <!-- Leaflet JS -->
+    <!-- Leaflet JS com fallback -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+    <script>
+        // Verificar se Leaflet foi carregado e tentar alternativas se falhou
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (typeof L === 'undefined') {
+                    console.warn("Leaflet não foi carregado da fonte principal, tentando fonte alternativa...");
+                    
+                    const leafletScript = document.createElement('script');
+                    leafletScript.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+                    document.head.appendChild(leafletScript);
+                    
+                    // Verificar novamente após carregar
+                    leafletScript.onload = function() {
+                        console.log("Leaflet carregado com sucesso da fonte alternativa");
+                    };
+                }
+            }, 1000);
+        });
+    </script>
     
     <!-- Pako para compressão de dados (carregado no início para garantir disponibilidade) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha512-g2TeAWw5GPnX7z0Kn8nFbYfeHcvAu/tx6d6mrLe/90mkCxO+RcptyYpksUz35EO337F83bZwcmUyHiHamxi9sw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
-    <!-- Leaflet Omnivore para KML e outros formatos -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js" integrity="sha512-61byQALH5N9K8V/F83X7YRfE+aNuoV6HWKLcLnxh9YMLlSXBiBmqxqNNO2oAOjEbVBQkwRQj+LjRYJ5LZqRDgw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Leaflet Omnivore para KML e outros formatos - múltiplas fontes para garantir disponibilidade -->
+    <script>
+        // Tentar carregar Omnivore de diferentes fontes
+        function carregarOmnivore() {
+            return new Promise((resolve, reject) => {
+                // Verificar se já foi carregado
+                if (typeof omnivore !== 'undefined') {
+                    console.log('Omnivore já está carregado');
+                    resolve(true);
+                    return;
+                }
+                
+                // Tentar primeira fonte
+                const script1 = document.createElement('script');
+                script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js';
+                script1.onload = () => {
+                    console.log('Omnivore carregado com sucesso (fonte 1)');
+                    resolve(true);
+                };
+                script1.onerror = () => {
+                    console.warn('Falha ao carregar Omnivore da fonte 1, tentando fonte 2...');
+                    
+                    // Tentar segunda fonte
+                    const script2 = document.createElement('script');
+                    script2.src = 'https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js';
+                    script2.onload = () => {
+                        console.log('Omnivore carregado com sucesso (fonte 2)');
+                        resolve(true);
+                    };
+                    script2.onerror = () => {
+                        console.warn('Falha ao carregar Omnivore da fonte 2, tentando fonte alternativa...');
+                        
+                        // Tentar terceira fonte (sem versão específica)
+                        const script3 = document.createElement('script');
+                        script3.src = 'https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js';
+                        script3.onload = () => {
+                            console.log('Omnivore carregado com sucesso (fonte 3)');
+                            resolve(true);
+                        };
+                        script3.onerror = () => {
+                            console.error('Todas as tentativas de carregar Omnivore falharam');
+                            reject(new Error('Não foi possível carregar a biblioteca Omnivore'));
+                        };
+                        document.head.appendChild(script3);
+                    };
+                    document.head.appendChild(script2);
+                };
+                document.head.appendChild(script1);
+            });
+        }
+        
+        // Tentar carregar ao inicializar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarOmnivore()
+                .then(() => console.log('Omnivore carregado e pronto para uso'))
+                .catch(err => console.error('Erro ao carregar Omnivore:', err));
+        });
+    </script>
+    
+    <!-- Script alternativo para KML caso omnivore falhe -->
+    <script>
+        // Script básico para processamento de KML caso o Omnivore falhe
+        window.processarKMLBasico = function(kmlString) {
+            console.log("Usando processador de KML básico (fallback)");
+            try {
+                // Verificar se o Leaflet está disponível
+                if (typeof L === 'undefined') {
+                    throw new Error("Leaflet não está disponível");
+                }
+                
+                // Extrair coordenadas do KML de forma simples
+                const parser = new DOMParser();
+                const kmlDoc = parser.parseFromString(kmlString, "text/xml");
+                const placemarks = kmlDoc.getElementsByTagName('Placemark');
+                const coordsElements = kmlDoc.getElementsByTagName('coordinates');
+                
+                if (coordsElements.length === 0) {
+                    throw new Error("Não foi possível encontrar coordenadas no KML");
+                }
+                
+                // Array para armazenar os polígonos encontrados
+                const poligonos = [];
+                
+                // Processar cada elemento de coordenadas
+                for (let i = 0; i < coordsElements.length; i++) {
+                    const coordStr = coordsElements[i].textContent.trim();
+                    const coordPares = coordStr.split(' ');
+                    
+                    // Array para armazenar as coordenadas processadas
+                    const coordenadas = [];
+                    
+                    // Processar cada par de coordenadas
+                    for (let j = 0; j < coordPares.length; j++) {
+                        if (!coordPares[j].trim()) continue;
+                        
+                        const xyz = coordPares[j].split(',');
+                        if (xyz.length >= 2) {
+                            // Formato KML é [longitude, latitude, altitude]
+                            // Leaflet espera [latitude, longitude]
+                            const lat = parseFloat(xyz[1]);
+                            const lng = parseFloat(xyz[0]);
+                            
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                coordenadas.push([lat, lng]);
+                            }
+                        }
+                    }
+                    
+                    if (coordenadas.length > 0) {
+                        // Encontrar o nome do polígono se disponível
+                        let nome = "Polígono " + (i + 1);
+                        if (placemarks[i]) {
+                            const nameElement = placemarks[i].getElementsByTagName('name')[0];
+                            if (nameElement) {
+                                nome = nameElement.textContent.trim();
+                            }
+                        }
+                        
+                        poligonos.push({
+                            coords: coordenadas,
+                            nome: nome
+                        });
+                    }
+                }
+                
+                if (poligonos.length === 0) {
+                    throw new Error("Não foi possível extrair polígonos válidos do KML");
+                }
+                
+                // Criar camada para cada polígono
+                const grupo = L.featureGroup();
+                
+                poligonos.forEach((poligono, index) => {
+                    const layer = L.polygon(poligono.coords, {
+                        color: '#2a7e19',
+                        weight: 2,
+                        opacity: 0.7,
+                        fillColor: '#2a7e19',
+                        fillOpacity: 0.2
+                    });
+                    
+                    // Criar propriedade básica
+                    const propriedade = {
+                        id: Math.random().toString(36).substring(2, 15),
+                        nome: poligono.nome,
+                        camada: layer,
+                        tipo: 'kml-basico',
+                        area: "Calculando...",
+                        propriedades: {},
+                        matricula: '',
+                        car: '',
+                        itr: '',
+                        ccir: '',
+                        documentos: []
+                    };
+                    
+                    // Adicionar ao armazenamento
+                    if (!window.propriedades) {
+                        window.propriedades = [];
+                    }
+                    window.propriedades.push(propriedade);
+                    
+                    // Configurar eventos
+                    layer.on({
+                        click: (e) => {
+                            if (typeof window.mostrarInformacoes === 'function') {
+                                window.mostrarInformacoes(propriedade);
+                            }
+                        },
+                        mouseover: (e) => {
+                            layer.setStyle({
+                                weight: 3,
+                                fillOpacity: 0.4
+                            });
+                        },
+                        mouseout: (e) => {
+                            if (window.camadaAtiva !== layer) {
+                                layer.setStyle({
+                                    color: '#2a7e19',
+                                    weight: 2,
+                                    opacity: 0.7,
+                                    fillColor: '#2a7e19',
+                                    fillOpacity: 0.2
+                                });
+                            }
+                        }
+                    });
+                    
+                    grupo.addLayer(layer);
+                });
+                
+                return grupo;
+            } catch (error) {
+                console.error("Erro no processador de KML básico:", error);
+                throw error;
+            }
+        };
+    </script>
     
     <!-- Bibliotecas para processamento de Shapefile -->
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
@@ -250,22 +465,57 @@
             const reader = new FileReader();
             
             reader.onload = function(e) {
-                try {
-                    // Verificar se omnivore está disponível
-                    if (typeof omnivore === 'undefined') {
-                        throw new Error("Biblioteca Omnivore não carregada.");
+                // Verificar se omnivore está disponível ou tentar carregá-lo
+                if (typeof omnivore === 'undefined') {
+                    console.log("Omnivore não encontrado, tentando carregar...");
+                    
+                    // Se a função carregarOmnivore existir, usá-la
+                    if (typeof carregarOmnivore === 'function') {
+                        carregarOmnivore()
+                            .then(() => {
+                                console.log("Omnivore carregado com sucesso, processando KML...");
+                                processarConteudoKML(e.target.result, file.name);
+                            })
+                            .catch(error => {
+                                console.error("Falha ao carregar Omnivore:", error);
+                                alert(`Erro ao processar arquivo KML: ${file.name}\nDetalhes: Biblioteca Omnivore não carregada.\n\nTente recarregar a página ou usar outro navegador.`);
+                            });
+                    } else {
+                        alert(`Erro ao processar arquivo KML: ${file.name}\nDetalhes: Biblioteca Omnivore não carregada e função de carregamento não encontrada.`);
                     }
-                    
-                    // Usar Leaflet-Omnivore para processar o KML
-                    const kmlLayer = omnivore.kml.parse(e.target.result);
-                    
-                    // Adicionar camada ao mapa
-                    window.adicionarCamadaAoMapa(kmlLayer, file.name, 'kml');
-                } catch (error) {
-                    console.error('Erro ao processar arquivo KML:', error);
-                    alert(`Erro ao processar arquivo KML: ${file.name}\nDetalhes: ${error.message}`);
+                } else {
+                    // Omnivore já está disponível, processar o KML diretamente
+                    processarConteudoKML(e.target.result, file.name);
                 }
             };
+            
+            // Função interna para processar o conteúdo KML com Omnivore
+            function processarConteudoKML(conteudoKML, nomeArquivo) {
+                try {
+                    // Usar Leaflet-Omnivore para processar o KML
+                    const kmlLayer = omnivore.kml.parse(conteudoKML);
+                    
+                    // Adicionar camada ao mapa
+                    window.adicionarCamadaAoMapa(kmlLayer, nomeArquivo, 'kml');
+                } catch (error) {
+                    console.error('Erro ao processar conteúdo KML com Omnivore:', error);
+                    
+                    // Tentar usar o parser básico como fallback
+                    try {
+                        console.log("Tentando processador KML básico como fallback...");
+                        if (typeof window.processarKMLBasico === 'function') {
+                            const kmlLayerBasico = window.processarKMLBasico(conteudoKML);
+                            window.adicionarCamadaAoMapa(kmlLayerBasico, nomeArquivo, 'kml-basico');
+                            console.log("KML processado com sucesso usando parser básico");
+                        } else {
+                            throw new Error("Parser KML básico não disponível");
+                        }
+                    } catch (fallbackError) {
+                        console.error("Falha também no parser básico:", fallbackError);
+                        alert(`Erro ao processar arquivo KML: ${nomeArquivo}\nDetalhes: ${error.message}\nFallback também falhou: ${fallbackError.message}`);
+                    }
+                }
+            }
             
             reader.readAsText(file);
         };
@@ -282,41 +532,67 @@
                         throw new Error("Biblioteca JSZip não carregada.");
                     }
                     
-                    // Verificar se omnivore está disponível
-                    if (typeof omnivore === 'undefined') {
-                        throw new Error("Biblioteca Omnivore não carregada.");
-                    }
-                    
-                    // Usar JSZip para descompactar o KMZ
-                    const zip = new JSZip();
-                    
-                    zip.loadAsync(e.target.result)
-                        .then(function(conteudo) {
-                            // Procurar pelo arquivo .kml dentro do KMZ
-                            let kmlEncontrado = false;
-                            
-                            // Iterar sobre os arquivos no ZIP
-                            Object.keys(conteudo.files).forEach(function(filename) {
-                                if (filename.toLowerCase().endsWith('.kml')) {
-                                    kmlEncontrado = true;
-                                    
-                                    // Extrair o conteúdo do KML
-                                    zip.file(filename).async("string").then(function(kmlString) {
-                                        // Processar o KML
-                                        const kmlLayer = omnivore.kml.parse(kmlString);
-                                        window.adicionarCamadaAoMapa(kmlLayer, file.name, 'kmz');
-                                    });
+                    // Verificar se omnivore está disponível ou tentar carregá-lo
+                    const processarConteudoKMZ = () => {
+                        // Usar JSZip para descompactar o KMZ
+                        const zip = new JSZip();
+                        
+                        zip.loadAsync(e.target.result)
+                            .then(function(conteudo) {
+                                // Procurar pelo arquivo .kml dentro do KMZ
+                                let kmlEncontrado = false;
+                                
+                                // Iterar sobre os arquivos no ZIP
+                                Object.keys(conteudo.files).forEach(function(filename) {
+                                    if (filename.toLowerCase().endsWith('.kml')) {
+                                        kmlEncontrado = true;
+                                        
+                                        // Extrair o conteúdo do KML
+                                        zip.file(filename).async("string").then(function(kmlString) {
+                                            try {
+                                                // Processar o KML
+                                                const kmlLayer = omnivore.kml.parse(kmlString);
+                                                window.adicionarCamadaAoMapa(kmlLayer, file.name, 'kmz');
+                                            } catch (error) {
+                                                console.error('Erro ao processar KML de dentro do KMZ:', error);
+                                                alert(`Erro ao processar o KML dentro do arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
+                                            }
+                                        });
+                                    }
+                                });
+                                
+                                if (!kmlEncontrado) {
+                                    throw new Error('Nenhum arquivo KML encontrado dentro do KMZ');
                                 }
+                            })
+                            .catch(function(error) {
+                                console.error('Erro ao processar arquivo KMZ:', error);
+                                alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
                             });
-                            
-                            if (!kmlEncontrado) {
-                                throw new Error('Nenhum arquivo KML encontrado dentro do KMZ');
-                            }
-                        })
-                        .catch(function(error) {
-                            console.error('Erro ao processar arquivo KMZ:', error);
-                            alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
-                        });
+                    };
+                    
+                    // Verificar se Omnivore está disponível
+                    if (typeof omnivore === 'undefined') {
+                        console.log("Omnivore não encontrado, tentando carregar...");
+                        
+                        // Se a função carregarOmnivore existir, usá-la
+                        if (typeof carregarOmnivore === 'function') {
+                            carregarOmnivore()
+                                .then(() => {
+                                    console.log("Omnivore carregado com sucesso, processando KMZ...");
+                                    processarConteudoKMZ();
+                                })
+                                .catch(error => {
+                                    console.error("Falha ao carregar Omnivore:", error);
+                                    alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: Biblioteca Omnivore não carregada.\n\nTente recarregar a página ou usar outro navegador.`);
+                                });
+                        } else {
+                            alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: Biblioteca Omnivore não carregada e função de carregamento não encontrada.`);
+                        }
+                    } else {
+                        // Omnivore já está disponível, processar o KMZ diretamente
+                        processarConteudoKMZ();
+                    }
                 } catch (error) {
                     console.error('Erro ao processar arquivo KMZ:', error);
                     alert(`Erro ao processar arquivo KMZ: ${file.name}\nDetalhes: ${error.message}`);
@@ -590,21 +866,42 @@
         // Iniciar a aplicação quando o documento estiver carregado
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DOM carregado, tentando iniciar aplicação...");
-            // Verificar se as bibliotecas necessárias estão carregadas
-            if (typeof L !== 'undefined') {
-                setTimeout(window.iniciarAplicacaoManualmente, 500);
+            
+            // Primeiro tentar carregar Omnivore
+            if (typeof carregarOmnivore === 'function') {
+                carregarOmnivore()
+                    .then(() => {
+                        console.log("Omnivore carregado com sucesso, iniciando aplicação...");
+                        iniciarAplicacaoQuandoPronta();
+                    })
+                    .catch(err => {
+                        console.error("Aviso: Falha ao carregar Omnivore:", err);
+                        console.log("Continuando inicialização sem Omnivore (será tentado novamente quando necessário)");
+                        iniciarAplicacaoQuandoPronta();
+                    });
             } else {
-                console.log("Leaflet não está carregado, aguardando...");
-                setTimeout(function() {
-                    if (typeof L !== 'undefined') {
-                        window.iniciarAplicacaoManualmente();
-                    } else {
-                        console.error("Leaflet não foi carregado após espera");
-                        document.getElementById('error-message').innerHTML = 
-                            "Erro: A biblioteca de mapas não foi carregada. Verifique sua conexão com a internet.";
-                        document.getElementById('error-message').style.display = 'block';
-                    }
-                }, 2000);
+                console.log("Função carregarOmnivore não encontrada, tentando iniciar aplicação diretamente");
+                iniciarAplicacaoQuandoPronta();
+            }
+            
+            // Função para iniciar a aplicação quando as bibliotecas estiverem prontas
+            function iniciarAplicacaoQuandoPronta() {
+                // Verificar se as bibliotecas necessárias estão carregadas
+                if (typeof L !== 'undefined') {
+                    setTimeout(window.iniciarAplicacaoManualmente, 500);
+                } else {
+                    console.log("Leaflet não está carregado, aguardando...");
+                    setTimeout(function() {
+                        if (typeof L !== 'undefined') {
+                            window.iniciarAplicacaoManualmente();
+                        } else {
+                            console.error("Leaflet não foi carregado após espera");
+                            document.getElementById('error-message').innerHTML = 
+                                "Erro: A biblioteca de mapas não foi carregada. Verifique sua conexão com a internet.";
+                            document.getElementById('error-message').style.display = 'block';
+                        }
+                    }, 2000);
+                }
             }
         });
     </script>

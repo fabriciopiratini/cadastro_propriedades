@@ -389,6 +389,17 @@ footer {
     margin-bottom: 0;
 }
 
+/* Mensagem de erro na importação */
+.info-message.error {
+    background-color: #fff0f0;
+    border-left: 4px solid #e63946;
+}
+
+.info-message.error p:first-child {
+    color: #e63946;
+    font-weight: bold;
+}
+
 /* Zona de perigo - área para botões de exclusão */
 .danger-zone {
     margin: 1.5rem 0;

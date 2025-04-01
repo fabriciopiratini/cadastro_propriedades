@@ -705,21 +705,47 @@ function compactarParaURL(jsonString) {
 // Função para descompactar dados da URL
 function descompactarDaURL(compactedString) {
     try {
-        // Descompactar usando LZ-based decompression
-        const decoded = atob(decodeURIComponent(compactedString));
-        return pako.inflate(
-            new Uint8Array(decoded.split('').map(c => c.charCodeAt(0))), 
-            { to: 'string' }
-        );
-    } catch (e) {
-        console.error("Erro ao descompactar dados:", e);
-        // Fallback: usar apenas base64
+        console.log("Tentando descompactar dados da URL...");
+        
+        // Primeiro decodificar a URL
+        const decodedString = decodeURIComponent(compactedString);
+        console.log("String decodificada da URL com sucesso");
+        
+        // Tentar converter de base64
         try {
-            return atob(decodeURIComponent(compactedString));
-        } catch (e2) {
-            console.error("Erro ao decodificar base64:", e2);
-            return null;
+            const base64Decoded = atob(decodedString);
+            console.log("Decodificação base64 realizada com sucesso");
+            
+            // Verificar se pako está disponível
+            if (typeof pako !== 'undefined') {
+                try {
+                    // Converter para array de bytes
+                    const byteCharacters = base64Decoded.split('').map(c => c.charCodeAt(0));
+                    const byteArray = new Uint8Array(byteCharacters);
+                    
+                    // Descomprimir usando pako
+                    const inflated = pako.inflate(byteArray, { to: 'string' });
+                    console.log("Descompressão com pako realizada com sucesso");
+                    return inflated;
+                } catch (pakoError) {
+                    console.error("Erro na descompressão pako:", pakoError);
+                    // Tentar usar o conteúdo base64 diretamente como JSON
+                    console.log("Tentando usar o conteúdo base64 como JSON...");
+                    return base64Decoded;
+                }
+            } else {
+                console.warn("Biblioteca pako não encontrada, usando apenas decodificação base64");
+                return base64Decoded;
+            }
+        } catch (base64Error) {
+            console.error("Erro na decodificação base64:", base64Error);
+            // Tentar usar a string decodificada diretamente
+            return decodedString;
         }
+    } catch (mainError) {
+        console.error("Erro principal na descompactação:", mainError);
+        // Último recurso - retornar a string original
+        return compactedString;
     }
 }
 
@@ -788,104 +814,155 @@ function carregarDadosIniciais() {
 
 // Função para carregar perímetros a partir de dados compartilhados
 function carregarPerimetrosDeDados(dados) {
-    console.log("Carregando perímetros de dados compartilhados:", dados);
+    console.log("Carregando perímetros de dados compartilhados...");
     
-    if (!dados || !Array.isArray(dados) || dados.length === 0) {
-        console.error("Dados inválidos ou vazios");
-        mostrarMensagemImportacao();
+    // Verificar se os dados são válidos
+    if (!dados) {
+        console.error("Dados inválidos (nulos ou indefinidos)");
+        mostrarMensagemImportacao("Não foi possível carregar os dados compartilhados (dados inválidos).");
         return;
     }
     
-    let sucessos = 0;
-    
-    // Processar cada propriedade nos dados
-    dados.forEach(prop => {
+    // Verificar se temos um array
+    if (!Array.isArray(dados)) {
+        console.error("Os dados compartilhados não são um array:", typeof dados);
         try {
-            if (prop.geometria) {
-                // Criar um objeto GeoJSON a partir da geometria
-                const feature = {
-                    type: 'Feature',
-                    properties: {
-                        name: prop.nome,
-                        MATRICULA: prop.matricula,
-                        CAR: prop.car,
-                        ITR: prop.itr,
-                        CCIR: prop.ccir
-                    },
-                    geometry: prop.geometria
-                };
-                
-                // Criar uma camada Leaflet com o GeoJSON
-                const layer = L.geoJSON(feature);
-                
-                // Adicionar a camada ao mapa - NÃO chama atualizarURLComPerimetros para evitar loop
-                layer.addTo(window.mapaAtual);
-                
-                // Adicionar interatividade e propriedades
-                layer.eachLayer(function(l) {
-                    if (l.feature) {
-                        // Configurar estilo
-                        l.setStyle({
-                            color: '#2a7e19',
-                            weight: 2,
-                            opacity: 0.7,
-                            fillColor: '#2a7e19',
-                            fillOpacity: 0.2
-                        });
-                        
-                        // Criar objeto da propriedade
-                        const propriedade = {
-                            id: prop.id || gerarId(),
-                            nome: prop.nome,
-                            camada: l,
-                            tipo: prop.tipo || 'compartilhado',
-                            area: prop.area,
-                            propriedades: feature.properties,
-                            matricula: prop.matricula || '',
-                            car: prop.car || '',
-                            itr: prop.itr || '',
-                            ccir: prop.ccir || '',
-                            documentos: []
-                        };
-                        
-                        // Adicionar ao armazenamento
-                        window.propriedades.push(propriedade);
-                        
-                        // Configurar eventos
-                        l.on({
-                            click: (e) => window.mostrarInformacoes(propriedade),
-                            mouseover: (e) => {
-                                l.setStyle({
-                                    weight: 3,
-                                    fillOpacity: 0.4
-                                });
-                            },
-                            mouseout: (e) => {
-                                if (window.camadaAtiva !== l) {
-                                    l.setStyle({
-                                        color: '#2a7e19',
-                                        weight: 2,
-                                        opacity: 0.7,
-                                        fillColor: '#2a7e19',
-                                        fillOpacity: 0.2
-                                    });
-                                }
-                            }
-                        });
-                    }
-                });
-                
-                sucessos++;
+            // Tentar converter para array se for um objeto
+            if (typeof dados === 'object') {
+                dados = [dados];
+                console.log("Convertido objeto único para array");
+            } else {
+                mostrarMensagemImportacao("Formato de dados incompatível.");
+                return;
             }
         } catch (e) {
-            console.error('Erro ao carregar propriedade compartilhada:', e);
+            console.error("Erro ao tentar converter dados:", e);
+            mostrarMensagemImportacao("Erro ao processar os dados compartilhados.");
+            return;
+        }
+    }
+    
+    // Verificar se o array está vazio
+    if (dados.length === 0) {
+        console.error("Array de dados vazio");
+        mostrarMensagemImportacao("Nenhum dado encontrado para carregar.");
+        return;
+    }
+    
+    console.log(`Processando ${dados.length} propriedades compartilhadas`);
+    
+    let sucessos = 0;
+    let erros = 0;
+    
+    // Processar cada propriedade nos dados
+    dados.forEach((prop, index) => {
+        try {
+            console.log(`Processando propriedade ${index + 1}/${dados.length}: ${prop.nome || 'Sem nome'}`);
+            
+            // Verificar se temos geometria
+            if (!prop.geometria) {
+                console.error(`Propriedade ${index + 1} não tem geometria`);
+                erros++;
+                return; // Continuar para o próximo item
+            }
+            
+            // Criar um objeto GeoJSON a partir da geometria
+            const feature = {
+                type: 'Feature',
+                properties: {
+                    name: prop.nome || `Propriedade ${index + 1}`,
+                    MATRICULA: prop.matricula || '',
+                    CAR: prop.car || '',
+                    ITR: prop.itr || '',
+                    CCIR: prop.ccir || ''
+                },
+                geometry: prop.geometria
+            };
+            
+            console.log(`GeoJSON criado para ${feature.properties.name}`);
+            
+            // Criar uma camada Leaflet com o GeoJSON
+            const layer = L.geoJSON(feature);
+            
+            if (!layer) {
+                console.error(`Falha ao criar camada Leaflet para propriedade ${index + 1}`);
+                erros++;
+                return;
+            }
+            
+            // Adicionar a camada ao mapa - NÃO chama atualizarURLComPerimetros para evitar loop
+            layer.addTo(window.mapaAtual);
+            console.log(`Camada adicionada ao mapa para ${feature.properties.name}`);
+            
+            // Adicionar interatividade e propriedades
+            layer.eachLayer(function(l) {
+                if (l.feature) {
+                    // Configurar estilo
+                    l.setStyle({
+                        color: '#2a7e19',
+                        weight: 2,
+                        opacity: 0.7,
+                        fillColor: '#2a7e19',
+                        fillOpacity: 0.2
+                    });
+                    
+                    // Criar objeto da propriedade
+                    const propriedade = {
+                        id: prop.id || gerarId(),
+                        nome: prop.nome || `Propriedade ${index + 1}`,
+                        camada: l,
+                        tipo: prop.tipo || 'compartilhado',
+                        area: prop.area || calcularArea(l),
+                        propriedades: feature.properties,
+                        matricula: prop.matricula || '',
+                        car: prop.car || '',
+                        itr: prop.itr || '',
+                        ccir: prop.ccir || '',
+                        documentos: []
+                    };
+                    
+                    // Adicionar ao armazenamento
+                    window.propriedades.push(propriedade);
+                    
+                    // Configurar eventos
+                    l.on({
+                        click: (e) => window.mostrarInformacoes(propriedade),
+                        mouseover: (e) => {
+                            l.setStyle({
+                                weight: 3,
+                                fillOpacity: 0.4
+                            });
+                        },
+                        mouseout: (e) => {
+                            if (window.camadaAtiva !== l) {
+                                l.setStyle({
+                                    color: '#2a7e19',
+                                    weight: 2,
+                                    opacity: 0.7,
+                                    fillColor: '#2a7e19',
+                                    fillOpacity: 0.2
+                                });
+                            }
+                        }
+                    });
+                    
+                    console.log(`Propriedade ${propriedade.nome} processada com sucesso`);
+                    sucessos++;
+                }
+            });
+        } catch (e) {
+            console.error(`Erro ao carregar propriedade ${index + 1}:`, e);
+            erros++;
         }
     });
+    
+    console.log(`Resultados do processamento: ${sucessos} sucessos, ${erros} erros`);
     
     // Se conseguiu carregar pelo menos uma propriedade
     if (sucessos > 0) {
         // Ajustar o zoom para mostrar todas as camadas
         try {
+            console.log("Ajustando zoom para mostrar todas as camadas...");
             const grupo = L.featureGroup(window.propriedades.map(p => p.camada));
             window.mapaAtual.fitBounds(grupo.getBounds());
         } catch (e) {
@@ -901,10 +978,52 @@ function carregarPerimetrosDeDados(dados) {
         }
         
         console.log(`${sucessos} propriedades carregadas com sucesso dos dados compartilhados.`);
+        
+        // Remover a tela de carregamento se ainda estiver visível
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator && loadingIndicator.style.display !== 'none') {
+            loadingIndicator.style.display = 'none';
+        }
+        
+        if (erros > 0) {
+            // Mostrar mensagem de alerta se houve alguns erros
+            alert(`Algumas propriedades (${erros}) não puderam ser carregadas. Verifique o console para mais detalhes.`);
+        }
     } else {
         console.error("Nenhuma propriedade pôde ser carregada dos dados compartilhados");
-        mostrarMensagemImportacao();
+        mostrarMensagemImportacao("Não foi possível carregar os perímetros compartilhados. Tente importar novamente.");
     }
+}
+
+// Função modificada para mostrar mensagens personalizadas
+function mostrarMensagemImportacao(mensagemPersonalizada = null) {
+    const listaEl = document.getElementById('lista-propriedades');
+    
+    if (mensagemPersonalizada) {
+        listaEl.innerHTML = `
+            <div class="info-message error">
+                <p>${mensagemPersonalizada}</p>
+                <p>Clique no botão "Importar Arquivos" para adicionar suas propriedades.</p>
+                <p>Você pode importar arquivos KML, KMZ ou Shapefile.</p>
+            </div>
+        `;
+    } else {
+        listaEl.innerHTML = `
+            <div class="info-message">
+                <p>Nenhuma propriedade encontrada.</p>
+                <p>Clique no botão "Importar Arquivos" para adicionar suas propriedades.</p>
+                <p>Você pode importar arquivos KML, KMZ ou Shapefile.</p>
+            </div>
+        `;
+    }
+    
+    // Remover a tela de carregamento se ainda estiver visível
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator && loadingIndicator.style.display !== 'none') {
+        loadingIndicator.style.display = 'none';
+    }
+    
+    console.log('Sistema pronto para importar arquivos KML, KMZ ou Shapefile.');
 }
 
 // Tentar carregar do localStorage
@@ -982,20 +1101,6 @@ function carregarDoLocalStorage() {
     
     // Se nenhum dado for encontrado ou a recriação falhar, mostrar mensagem
     mostrarMensagemImportacao();
-}
-
-// Mostrar mensagem de importação
-function mostrarMensagemImportacao() {
-    const listaEl = document.getElementById('lista-propriedades');
-    listaEl.innerHTML = `
-        <div class="info-message">
-            <p>Nenhuma propriedade encontrada.</p>
-            <p>Clique no botão "Importar Arquivos" para adicionar suas propriedades.</p>
-            <p>Você pode importar arquivos KML, KMZ ou Shapefile.</p>
-        </div>
-    `;
-    
-    console.log('Sistema pronto para importar arquivos KML, KMZ ou Shapefile.');
 }
 
 // Função para gerar link compartilhável e mostrar modal

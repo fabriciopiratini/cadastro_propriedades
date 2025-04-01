@@ -37,10 +37,6 @@
         }
     </style>
     
-    <!-- Leaflet CSS de múltiplas fontes para garantir disponibilidade -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9QE0xNBnU0K6mKMRJGhZ9J4YJFhlMcjgXbqvgYr0EIwNHCE2pfA+5b9xQHGSEQT/3wNmZ+4K4hWXpXast0OFg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
     <!-- CSS do projeto -->
     <link rel="stylesheet" href="./src/css/style.css">
     
@@ -55,6 +51,10 @@
             document.write('<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"><\/script>');
         }
     </script>
+    
+    <!-- Leaflet CSS de múltiplas fontes para garantir disponibilidade -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9QE0xNBnU0K6mKMRJGhZ9J4YJFhlMcjgXbqvgYr0EIwNHCE2pfA+5b9xQHGSEQT/3wNmZ+4K4hWXpXast0OFg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <!-- Leaflet JS de múltiplas fontes -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -80,6 +80,59 @@
     
     <!-- Leaflet Geometry Util para cálculo de áreas -->
     <script src="https://unpkg.com/leaflet-geometryutil@0.10.1/src/leaflet.geometryutil.js"></script>
+    
+    <!-- Script para verificar carregamento -->
+    <script>
+        // Lista de bibliotecas necessárias
+        const bibliotecasNecessarias = [
+            {nome: 'Leaflet', objeto: 'L'},
+            {nome: 'Leaflet-Omnivore', objeto: 'omnivore'},
+            {nome: 'JSZip', objeto: 'JSZip'},
+            {nome: 'ShpJS', objeto: 'shp'},
+            {nome: 'Pako', objeto: 'pako'}
+        ];
+        
+        // Verificar periodicamente o carregamento das bibliotecas
+        const verificarBibliotecas = function() {
+            console.log("Verificando carregamento de bibliotecas...");
+            
+            let todasCarregadas = true;
+            let bibliotecasFaltantes = [];
+            
+            for (const lib of bibliotecasNecessarias) {
+                if (typeof window[lib.objeto] === 'undefined') {
+                    todasCarregadas = false;
+                    bibliotecasFaltantes.push(lib.nome);
+                }
+            }
+            
+            if (todasCarregadas) {
+                console.log("Todas as bibliotecas foram carregadas com sucesso!");
+                
+                // Iniciar aplicação quando as bibliotecas estiverem prontas
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(function() {
+                        document.getElementById('loading-indicator').style.display = 'none';
+                    }, 1000);
+                });
+            } else {
+                console.warn("Bibliotecas ainda não carregadas: " + bibliotecasFaltantes.join(', '));
+                
+                // Tentar novamente em 500ms
+                setTimeout(verificarBibliotecas, 500);
+            }
+        };
+        
+        // Iniciar verificação
+        setTimeout(verificarBibliotecas, 500);
+        
+        // Monitorar erros globais
+        window.addEventListener('error', function(e) {
+            console.error('Erro global capturado:', e.message);
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-message').innerHTML = '<strong>Erro:</strong> ' + e.message;
+        });
+    </script>
 </head>
 <body>
     <!-- Indicador de carregamento e fallback para quando JS falhar -->

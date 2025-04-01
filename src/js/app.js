@@ -3,6 +3,46 @@ window.propriedades = [];
 window.mapaAtual = null;
 window.camadaAtiva = null;
 
+// Definir nomes de função críticos globalmente para evitar duplicações
+// Verificar se já estão definidos para evitar redeclarações
+if (typeof window.verificarBibliotecas !== 'function') {
+    window.verificarBibliotecas = function() {
+        let todasCarregadas = true;
+        
+        // Lista de bibliotecas necessárias
+        const bibliotecas = [
+            { nome: "Leaflet", obj: "L" },
+            { nome: "Leaflet-Omnivore", obj: "omnivore" },
+            { nome: "JSZip", obj: "JSZip" },
+            { nome: "ShpJS", obj: "shp" }
+        ];
+        
+        // Verificar pako separadamente para evitar referência duplicada
+        if (typeof window.pako === 'undefined') {
+            console.error('ERRO: Pako não foi carregado! A compressão de dados para compartilhamento não funcionará.');
+            // Não bloqueia o funcionamento da aplicação se pako falhar
+        } else {
+            console.log('Pako carregado com sucesso');
+        }
+        
+        bibliotecas.forEach(lib => {
+            if (typeof window[lib.obj] !== 'undefined') {
+                console.log(`${lib.nome} carregado com sucesso`);
+            } else {
+                console.error(`ERRO: ${lib.nome} não foi carregado!`);
+                todasCarregadas = false;
+            }
+        });
+        
+        // Tentar carregar localmente os arquivos se não estiverem disponíveis
+        if (!todasCarregadas) {
+            console.warn("Algumas bibliotecas não foram carregadas. Tentando carregar de fontes alternativas...");
+        }
+        
+        return todasCarregadas;
+    };
+}
+
 // Inicialização do mapa
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Aplicação iniciada. Verificando ambiente...");
@@ -13,35 +53,47 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("Protocol:", window.location.protocol);
     console.log("UserAgent:", navigator.userAgent);
     
-    // Verificar o suporte do navegador
-    verificarNavegador();
-    
-    // Verificar conexão com a internet
-    verificarConexao();
-    
-    // Verificar se as bibliotecas estão carregadas
-    const bibliotecasOk = verificarBibliotecas();
-    
-    // Só inicializa se as bibliotecas estiverem disponíveis
-    if (bibliotecasOk) {
-        try {
-            // Inicializar componentes
-            inicializarMapa();
-            configurarEventos();
-            carregarDadosIniciais();
-            
-            // Carregar dados salvos localmente (se houver)
-            if (typeof carregarDadosLocais === 'function') {
-                carregarDadosLocais();
-            } else {
-                console.warn("A função carregarDadosLocais não está disponível!");
-            }
-        } catch (error) {
-            console.error("Erro na inicialização da aplicação:", error);
-            mostrarErroInicializacao(error);
+    // Garantir que a tela de carregamento seja removida após um tempo
+    setTimeout(() => {
+        const loadingEl = document.getElementById('loading-indicator');
+        if (loadingEl && loadingEl.style.display !== 'none') {
+            loadingEl.style.display = 'none';
         }
-    } else {
-        mostrarErroInicializacao("Bibliotecas necessárias não encontradas");
+    }, 5000); // Tempo máximo de 5 segundos para carregar
+    
+    try {
+        // Verificar o suporte do navegador
+        verificarNavegador();
+        
+        // Verificar conexão com a internet
+        verificarConexao();
+        
+        // Verificar se as bibliotecas estão carregadas
+        const bibliotecasOk = window.verificarBibliotecas();
+        
+        // Só inicializa se as bibliotecas essenciais estiverem disponíveis
+        if (bibliotecasOk) {
+            try {
+                // Inicializar componentes
+                inicializarMapa();
+                configurarEventos();
+                carregarDadosIniciais();
+                
+                // Remover a tela de carregamento quando tudo estiver pronto
+                const loadingEl = document.getElementById('loading-indicator');
+                if (loadingEl) {
+                    loadingEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error("Erro na inicialização da aplicação:", error);
+                mostrarErroInicializacao(error);
+            }
+        } else {
+            mostrarErroInicializacao("Bibliotecas necessárias não encontradas");
+        }
+    } catch (error) {
+        console.error("Erro na inicialização da aplicação:", error);
+        mostrarErroInicializacao(error);
     }
 });
 
@@ -76,35 +128,6 @@ function verificarConexao() {
         console.warn("Dispositivo offline!");
         alert("Você está offline. Os mapas e imagens de satélite podem não carregar corretamente.");
     });
-}
-
-// Verificar se as bibliotecas necessárias estão carregadas
-function verificarBibliotecas() {
-    let todasCarregadas = true;
-    
-    // Lista de bibliotecas necessárias
-    const bibliotecas = [
-        { nome: "Leaflet", obj: "L" },
-        { nome: "Leaflet-Omnivore", obj: "omnivore" },
-        { nome: "JSZip", obj: "JSZip" },
-        { nome: "ShpJS", obj: "shp" }
-    ];
-    
-    bibliotecas.forEach(lib => {
-        if (typeof window[lib.obj] !== 'undefined') {
-            console.log(`${lib.nome} carregado com sucesso`);
-        } else {
-            console.error(`ERRO: ${lib.nome} não foi carregado!`);
-            todasCarregadas = false;
-        }
-    });
-    
-    // Tentar carregar localmente os arquivos se não estiverem disponíveis
-    if (!todasCarregadas) {
-        console.warn("Algumas bibliotecas não foram carregadas. Tentando carregar de fontes alternativas...");
-    }
-    
-    return todasCarregadas;
 }
 
 // Mostrar erro de inicialização
@@ -640,65 +663,109 @@ function atualizarURLComPerimetros() {
             return;
         }
         
+        // Verificar se pako está disponível - se não estiver, apenas logar um aviso
+        if (typeof window.pako === 'undefined') {
+            console.warn("A biblioteca pako não está disponível. A URL será gerada sem compressão.");
+        }
+        
         // Obter parâmetros atuais da URL
         const urlParams = new URLSearchParams(window.location.search);
         const idProdutor = urlParams.get('produtor') || 'default';
         
-        // Criar versão compartilhável dos dados
-        const dadosCompartilhaveis = window.propriedades.map(prop => {
-            // Extrair geometria da propriedade
-            let geometria = null;
-            try {
-                if (prop.camada && prop.camada.toGeoJSON) {
-                    geometria = prop.camada.toGeoJSON().geometry;
+        try {
+            // Criar versão compartilhável dos dados
+            const dadosCompartilhaveis = window.propriedades.map(prop => {
+                // Extrair geometria da propriedade
+                let geometria = null;
+                try {
+                    if (prop.camada && prop.camada.toGeoJSON) {
+                        geometria = prop.camada.toGeoJSON().geometry;
+                    }
+                } catch (e) {
+                    console.error("Erro ao extrair geometria:", e);
                 }
-            } catch (e) {
-                console.error("Erro ao extrair geometria:", e);
-            }
+                
+                return {
+                    id: prop.id,
+                    nome: prop.nome,
+                    tipo: prop.tipo,
+                    area: prop.area,
+                    matricula: prop.matricula,
+                    car: prop.car,
+                    itr: prop.itr,
+                    ccir: prop.ccir,
+                    geometria: geometria
+                };
+            });
             
-            return {
-                id: prop.id,
-                nome: prop.nome,
-                tipo: prop.tipo,
-                area: prop.area,
-                matricula: prop.matricula,
-                car: prop.car,
-                itr: prop.itr,
-                ccir: prop.ccir,
-                geometria: geometria
-            };
-        });
-        
-        // Compactar os dados para URL
-        const dadosJSON = JSON.stringify(dadosCompartilhaveis);
-        const dadosCompactados = compactarParaURL(dadosJSON);
-        
-        // Criar nova URL com os dados
-        urlParams.set('data', dadosCompactados);
-        
-        // Atualizar URL sem recarregar a página
-        const novaURL = window.location.pathname + '?' + urlParams.toString();
-        window.history.replaceState({}, '', novaURL);
-        
-        console.log("URL atualizada com os dados dos perímetros para compartilhamento");
+            // Compactar os dados para URL
+            const dadosJSON = JSON.stringify(dadosCompartilhaveis);
+            const dadosCompactados = compactarParaURL(dadosJSON);
+            
+            // Verificar se a compactação foi bem sucedida
+            if (dadosCompactados) {
+                // Criar nova URL com os dados
+                urlParams.set('data', dadosCompactados);
+                
+                // Atualizar URL sem recarregar a página
+                try {
+                    const novaURL = window.location.pathname + '?' + urlParams.toString();
+                    window.history.replaceState({}, '', novaURL);
+                    console.log("URL atualizada com os dados dos perímetros para compartilhamento");
+                } catch (urlError) {
+                    console.error("Erro ao atualizar URL:", urlError);
+                }
+            } else {
+                console.error("Falha ao compactar dados para URL");
+            }
+        } catch (dataError) {
+            console.error("Erro ao processar dados das propriedades:", dataError);
+        }
     } catch (error) {
-        console.error("Erro ao atualizar URL com perímetros:", error);
+        console.error("Erro geral ao atualizar URL com perímetros:", error);
     }
 }
 
 // Função para compactar dados para URL
 function compactarParaURL(jsonString) {
     try {
-        // Compactar usando LZ-based compression
-        return encodeURIComponent(
-            btoa(String.fromCharCode.apply(null, 
-                new Uint8Array(pako.deflate(jsonString))
-            ))
-        );
+        // Verificar se pako está disponível
+        if (typeof window.pako !== 'undefined') {
+            console.log("Usando pako para compactar dados");
+            try {
+                // Compactar usando LZ-based compression
+                const compressedArray = pako.deflate(jsonString);
+                
+                // Converter para string base64
+                let base64String = '';
+                const byteArray = new Uint8Array(compressedArray);
+                const chunkSize = 32767; // Dividir em pedaços para evitar problemas com String.fromCharCode
+                
+                for (let i = 0; i < byteArray.length; i += chunkSize) {
+                    const chunk = byteArray.slice(i, i + chunkSize);
+                    base64String += String.fromCharCode.apply(null, chunk);
+                }
+                
+                return encodeURIComponent(btoa(base64String));
+            } catch (compressionError) {
+                console.error("Erro na compressão pako:", compressionError);
+                // Fallback para base64
+                return encodeURIComponent(btoa(jsonString));
+            }
+        } else {
+            console.warn("Pako não disponível, usando apenas codificação base64");
+            return encodeURIComponent(btoa(jsonString));
+        }
     } catch (e) {
         console.error("Erro ao compactar dados:", e);
-        // Fallback: usar apenas base64
-        return encodeURIComponent(btoa(jsonString));
+        // Último recurso: usar apenas URL encoding
+        try {
+            return encodeURIComponent(jsonString);
+        } catch (encodeError) {
+            console.error("Erro até mesmo no encoding básico:", encodeError);
+            // Não há mais o que fazer, retornar string original
+            return jsonString;
+        }
     }
 }
 
@@ -717,11 +784,10 @@ function descompactarDaURL(compactedString) {
             console.log("Decodificação base64 realizada com sucesso");
             
             // Verificar se pako está disponível
-            if (typeof pako !== 'undefined') {
+            if (typeof window.pako !== 'undefined') {
                 try {
                     // Converter para array de bytes
-                    const byteCharacters = base64Decoded.split('').map(c => c.charCodeAt(0));
-                    const byteArray = new Uint8Array(byteCharacters);
+                    const byteArray = new Uint8Array(base64Decoded.split('').map(c => c.charCodeAt(0)));
                     
                     // Descomprimir usando pako
                     const inflated = pako.inflate(byteArray, { to: 'string' });

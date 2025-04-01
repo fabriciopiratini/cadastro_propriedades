@@ -7,13 +7,35 @@
 const STORAGE_KEY = 'portal_produtor_propriedades';
 
 /**
+ * Verifica se o localStorage está disponível
+ * @returns {boolean} true se o localStorage estiver disponível
+ */
+function verificarLocalStorage() {
+    try {
+        const test = 'test';
+        localStorage.setItem(test, test);
+        localStorage.removeItem(test);
+        return true;
+    } catch (e) {
+        console.error('localStorage não está disponível:', e);
+        return false;
+    }
+}
+
+/**
  * Salva dados das propriedades no localStorage
  */
 function salvarDadosLocalmente() {
+    // Verificar se localStorage está disponível
+    if (!verificarLocalStorage()) {
+        console.error('Não foi possível salvar dados localmente - localStorage não disponível');
+        return false;
+    }
+    
     // Verificar se há propriedades para salvar
     if (!window.propriedades || window.propriedades.length === 0) {
         console.log('Nenhuma propriedade para salvar');
-        return;
+        return false;
     }
     
     try {
@@ -50,8 +72,12 @@ function salvarDadosLocalmente() {
         console.log(`${dadosParaSalvar.length} propriedades salvas localmente`);
         
         // Também atualizar o URL para compartilhamento se a função existir
-        if (typeof atualizarURLComPerimetros === 'function') {
-            atualizarURLComPerimetros();
+        if (typeof window.atualizarURLComPerimetros === 'function') {
+            try {
+                window.atualizarURLComPerimetros();
+            } catch (e) {
+                console.error('Erro ao atualizar URL com perímetros:', e);
+            }
         }
         
         return true;
@@ -66,6 +92,12 @@ function salvarDadosLocalmente() {
  * @returns {Array} Array de propriedades ou array vazio se nada for encontrado
  */
 function carregarDadosLocais() {
+    // Verificar se localStorage está disponível
+    if (!verificarLocalStorage()) {
+        console.error('Não foi possível carregar dados locais - localStorage não disponível');
+        return [];
+    }
+    
     try {
         // Recuperar dados do localStorage
         const dadosSalvos = localStorage.getItem(STORAGE_KEY);
@@ -90,6 +122,12 @@ function carregarDadosLocais() {
  * Limpa todos os dados armazenados localmente
  */
 function limparDadosLocais() {
+    // Verificar se localStorage está disponível
+    if (!verificarLocalStorage()) {
+        console.error('Não foi possível limpar dados locais - localStorage não disponível');
+        return false;
+    }
+    
     try {
         localStorage.removeItem(STORAGE_KEY);
         console.log('Dados locais removidos com sucesso');
@@ -108,7 +146,7 @@ function exportarDados() {
         // Verificar se há propriedades para exportar
         if (!window.propriedades || window.propriedades.length === 0) {
             alert('Não há propriedades para exportar.');
-            return;
+            return false;
         }
         
         // Criar dados para exportar (similar ao salvarDadosLocalmente)
@@ -205,14 +243,23 @@ function gerarURLCompartilhavel() {
         const jsonString = JSON.stringify(dadosCompartilhaveis);
         
         // Verificar se função de compactação existe
-        if (typeof compactarParaURL === 'function') {
-            const dadosCompactados = compactarParaURL(jsonString);
-            
-            // Criar URL com parâmetros
-            const url = new URL(window.location.href);
-            url.searchParams.set('data', dadosCompactados);
-            
-            return url.toString();
+        if (typeof window.compactarParaURL === 'function') {
+            try {
+                const dadosCompactados = window.compactarParaURL(jsonString);
+                
+                // Criar URL com parâmetros
+                const url = new URL(window.location.href);
+                url.searchParams.set('data', dadosCompactados);
+                
+                return url.toString();
+            } catch (e) {
+                console.error('Erro ao compactar dados para URL:', e);
+                // Fallback: codificação básica
+                const encoded = encodeURIComponent(btoa(jsonString));
+                const url = new URL(window.location.href);
+                url.searchParams.set('data', encoded);
+                return url.toString();
+            }
         } else {
             // Fallback simples de codificação para URL
             const encoded = encodeURIComponent(btoa(jsonString));
@@ -230,19 +277,12 @@ function gerarURLCompartilhavel() {
 
 // Auto-salvar quando propriedades são modificadas
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificar se tem dados compartilhados na URL e tentar carregá-los primeiro
-    const urlParams = new URLSearchParams(window.location.search);
-    const dadosURL = urlParams.get('data');
+    console.log('Módulo de armazenamento inicializado');
     
-    // Se não tem dados na URL, verificar localStorage
-    if (!dadosURL) {
-        console.log('Verificando armazenamento local ao inicializar...');
-        
-        // Auto-salvar periodicamente (a cada 30 segundos)
-        setInterval(() => {
-            if (window.propriedades && window.propriedades.length > 0) {
-                salvarDadosLocalmente();
-            }
-        }, 30000);
-    }
+    // Auto-salvar periodicamente (a cada 30 segundos)
+    setInterval(() => {
+        if (window.propriedades && window.propriedades.length > 0) {
+            salvarDadosLocalmente();
+        }
+    }, 30000);
 }); 

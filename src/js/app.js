@@ -233,7 +233,7 @@ function processarArquivoShapefile(file) {
                                 
                                 // Configurar eventos
                                 layer.on({
-                                    click: (e) => mostrarInformacoes(propriedade),
+                                    click: (e) => window.mostrarInformacoes(propriedade),
                                     mouseover: (e) => {
                                         layer.setStyle({
                                             weight: 3,
@@ -256,7 +256,7 @@ function processarArquivoShapefile(file) {
                         window.mapaAtual.fitBounds(shpLayer.getBounds());
                         
                         // Atualizar a lista de propriedades
-                        atualizarListaPropriedades();
+                        window.atualizarListaPropriedades();
                     })
                     .catch(function(error) {
                         console.error('Erro ao processar Shapefile:', error);
@@ -332,7 +332,7 @@ function adicionarCamadaAoMapa(layer, nome, tipo) {
             
             // Configurar eventos
             l.on({
-                click: (e) => mostrarInformacoes(propriedade),
+                click: (e) => window.mostrarInformacoes(propriedade),
                 mouseover: (e) => {
                     l.setStyle({
                         weight: 3,
@@ -355,7 +355,7 @@ function adicionarCamadaAoMapa(layer, nome, tipo) {
     window.mapaAtual.fitBounds(layer.getBounds());
     
     // Atualizar a lista de propriedades
-    atualizarListaPropriedades();
+    window.atualizarListaPropriedades();
     
     // Auto-salvar os dados
     if (typeof salvarDadosLocalmente === 'function') {
@@ -385,7 +385,7 @@ function gerarId() {
 }
 
 // Mostrar informações da propriedade
-function mostrarInformacoes(propriedade) {
+window.mostrarInformacoes = function(propriedade) {
     // Destacar a camada selecionada
     if (window.camadaAtiva) {
         // Resetar estilo da camada anteriormente ativa
@@ -427,11 +427,11 @@ function mostrarInformacoes(propriedade) {
     document.getElementById('propriedade-info').style.display = 'block';
     
     // Destacar na lista
-    atualizarListaPropriedades(propriedade.id);
-}
+    window.atualizarListaPropriedades(propriedade.id);
+};
 
 // Atualizar lista de propriedades
-function atualizarListaPropriedades(propriedadeAtiva = null) {
+window.atualizarListaPropriedades = function(propriedadeAtiva = null) {
     const listaEl = document.getElementById('lista-propriedades');
     listaEl.innerHTML = '';
     
@@ -444,6 +444,9 @@ function atualizarListaPropriedades(propriedadeAtiva = null) {
     window.propriedades.forEach(prop => {
         const itemEl = document.createElement('div');
         itemEl.className = 'propriedade-item';
+        
+        // Adicionar ID como atributo de dados para referência
+        itemEl.dataset.id = prop.id;
         
         if (propriedadeAtiva && prop.id === propriedadeAtiva) {
             itemEl.classList.add('active');
@@ -458,12 +461,12 @@ function atualizarListaPropriedades(propriedadeAtiva = null) {
             // Centralizar no mapa
             window.mapaAtual.fitBounds(prop.camada.getBounds());
             // Mostrar informações
-            mostrarInformacoes(prop);
+            window.mostrarInformacoes(prop);
         });
         
         listaEl.appendChild(itemEl);
     });
-}
+};
 
 // Carregar dados iniciais
 function carregarDadosIniciais() {

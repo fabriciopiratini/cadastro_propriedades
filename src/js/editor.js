@@ -1,6 +1,7 @@
 // Manipulação de edição de propriedades
 document.addEventListener('DOMContentLoaded', () => {
     configurarEdicao();
+    configurarExclusao();
 });
 
 // Configurar eventos de edição
@@ -12,6 +13,10 @@ function configurarEdicao() {
     
     // Campos de texto e visualização
     const camposTexto = {
+        area: {
+            texto: document.getElementById('info-area'),
+            input: document.getElementById('edit-area')
+        },
         matricula: {
             texto: document.getElementById('info-matricula'),
             input: document.getElementById('edit-matricula')
@@ -44,11 +49,123 @@ function configurarEdicao() {
     });
 }
 
+// Configurar eventos para exclusão de propriedade
+function configurarExclusao() {
+    const btnExcluir = document.getElementById('btn-excluir');
+    const modal = document.getElementById('modal-confirmacao');
+    const btnConfirmar = document.getElementById('btn-confirmar-exclusao');
+    const btnCancelar = document.getElementById('btn-cancelar-exclusao');
+    
+    // Abrir modal de confirmação
+    btnExcluir.addEventListener('click', () => {
+        modal.classList.add('active');
+    });
+    
+    // Fechar modal ao cancelar
+    btnCancelar.addEventListener('click', () => {
+        modal.classList.remove('active');
+    });
+    
+    // Confirmar exclusão
+    btnConfirmar.addEventListener('click', () => {
+        excluirPropriedadeAtiva();
+        modal.classList.remove('active');
+    });
+    
+    // Fechar modal ao clicar fora dele
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+}
+
+// Excluir propriedade ativa
+function excluirPropriedadeAtiva() {
+    const propriedadeAtiva = obterPropriedadeAtiva();
+    
+    if (!propriedadeAtiva) {
+        alert('Erro: Não foi possível encontrar a propriedade a ser excluída.');
+        return;
+    }
+    
+    // Remover a camada do mapa
+    if (propriedadeAtiva.camada && propriedadeAtiva.camada.remove) {
+        propriedadeAtiva.camada.remove();
+    }
+    
+    // Remover a propriedade do array
+    const index = window.propriedades.findIndex(p => p.id === propriedadeAtiva.id);
+    if (index !== -1) {
+        window.propriedades.splice(index, 1);
+    }
+    
+    // Salvar alterações no localStorage
+    salvarDadosLocalmente();
+    
+    // Fechar painel de informações
+    document.getElementById('propriedade-info').style.display = 'none';
+    
+    // Atualizar lista de propriedades
+    if (typeof window.atualizarListaPropriedades === 'function') {
+        window.atualizarListaPropriedades();
+    } else {
+        atualizarListaPropriedades();
+    }
+    
+    alert('Propriedade excluída com sucesso!');
+}
+
+// Atualizar lista de propriedades (utilizada apenas se não existir no escopo global)
+function atualizarListaPropriedades() {
+    const listaEl = document.getElementById('lista-propriedades');
+    listaEl.innerHTML = '';
+    
+    if (window.propriedades.length === 0) {
+        listaEl.innerHTML = '<p class="empty-message">Nenhuma propriedade importada.</p>';
+        return;
+    }
+    
+    // Criar item na lista para cada propriedade
+    window.propriedades.forEach(prop => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'propriedade-item';
+        itemEl.dataset.id = prop.id;
+        
+        itemEl.innerHTML = `
+            <h3>${prop.nome}</h3>
+            <p>${prop.area ? prop.area + ' ha' : 'Área não disponível'}</p>
+        `;
+        
+        itemEl.addEventListener('click', () => {
+            // Centralizar no mapa
+            window.mapaAtual.fitBounds(prop.camada.getBounds());
+            // Mostrar informações
+            if (typeof window.mostrarInformacoes === 'function') {
+                window.mostrarInformacoes(prop);
+            }
+        });
+        
+        listaEl.appendChild(itemEl);
+    });
+}
+
 // Ativar modo de edição
 function ativarModoEdicao(campos) {
     // Esconder os textos e mostrar inputs
     for (const campo in campos) {
-        const valor = campos[campo].texto.textContent === 'Não informado' ? '' : campos[campo].texto.textContent;
+        let valor = campos[campo].texto.textContent;
+        
+        // Remover o "ha" do campo área para a edição
+        if (campo === 'area' && valor.includes('ha')) {
+            valor = valor.replace(' ha', '');
+        }
+        
+        // Se o valor for "Não informado", usar string vazia
+        if (valor === 'Não informado') {
+            valor = '';
+        }
+        
         campos[campo].input.value = valor;
         campos[campo].texto.style.display = 'none';
         campos[campo].input.style.display = 'block';
@@ -70,16 +187,31 @@ function salvarEdicao(campos) {
         return;
     }
     
+    // Validar o campo da área para garantir que é um número válido
+    const areaTexto = campos.area.input.value.trim();
+    let areaValor = parseFloat(areaTexto);
+    
+    if (areaTexto && isNaN(areaValor)) {
+        alert('Por favor, insira um valor numérico válido para a área.');
+        return;
+    }
+    
     // Atualizar os dados da propriedade
+    propriedadeAtiva.area = areaTexto ? areaValor.toFixed(2) : "N/A";
     propriedadeAtiva.matricula = campos.matricula.input.value.trim();
     propriedadeAtiva.car = campos.car.input.value.trim();
     propriedadeAtiva.itr = campos.itr.input.value.trim();
     propriedadeAtiva.ccir = campos.ccir.input.value.trim();
     
     // Atualizar a visualização
+    campos.area.texto.textContent = propriedadeAtiva.area !== "N/A" ? `${propriedadeAtiva.area} ha` : 'N/A';
+    campos.matricula.texto.textContent = propriedadeAtiva.matricula || 'Não informado';
+    campos.car.texto.textContent = propriedadeAtiva.car || 'Não informado';
+    campos.itr.texto.textContent = propriedadeAtiva.itr || 'Não informado';
+    campos.ccir.texto.textContent = propriedadeAtiva.ccir || 'Não informado';
+    
+    // Restaurar modo de visualização
     for (const campo in campos) {
-        const valor = campos[campo].input.value.trim() || 'Não informado';
-        campos[campo].texto.textContent = valor;
         campos[campo].texto.style.display = 'block';
         campos[campo].input.style.display = 'none';
     }
@@ -89,10 +221,28 @@ function salvarEdicao(campos) {
     document.getElementById('btn-salvar').style.display = 'none';
     document.getElementById('btn-cancelar').style.display = 'none';
     
-    // Salvar dados no localStorage (opcional)
+    // Atualizar item na lista
+    atualizarItemNaLista(propriedadeAtiva);
+    
+    // Salvar dados no localStorage
     salvarDadosLocalmente();
     
     alert('Dados atualizados com sucesso!');
+}
+
+// Atualizar um item específico na lista de propriedades
+function atualizarItemNaLista(propriedade) {
+    const items = document.querySelectorAll('.propriedade-item');
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].dataset.id === propriedade.id) {
+            const areaInfo = items[i].querySelector('p');
+            if (areaInfo) {
+                areaInfo.textContent = propriedade.area !== "N/A" ? 
+                    `${propriedade.area} ha` : 'Área não disponível';
+            }
+            break;
+        }
+    }
 }
 
 // Cancelar edição

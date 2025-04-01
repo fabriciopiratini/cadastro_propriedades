@@ -419,7 +419,15 @@ window.mostrarInformacoes = function(propriedade) {
     document.getElementById('info-nome').textContent = propriedade.nome;
     document.getElementById('info-area').textContent = propriedade.area ? `${propriedade.area} ha` : 'N/A';
     document.getElementById('info-matricula').textContent = propriedade.matricula || 'Não informado';
-    document.getElementById('info-car').textContent = propriedade.car || 'Não informado';
+    
+    // Formatação especial para o CAR (código longo)
+    const carEl = document.getElementById('info-car');
+    if (propriedade.car) {
+        carEl.innerHTML = `<span class="code-value">${propriedade.car}</span>`;
+    } else {
+        carEl.textContent = 'Não informado';
+    }
+    
     document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
     document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
     

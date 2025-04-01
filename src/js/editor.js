@@ -206,7 +206,14 @@ function salvarEdicao(campos) {
     // Atualizar a visualização
     campos.area.texto.textContent = propriedadeAtiva.area !== "N/A" ? `${propriedadeAtiva.area} ha` : 'N/A';
     campos.matricula.texto.textContent = propriedadeAtiva.matricula || 'Não informado';
-    campos.car.texto.textContent = propriedadeAtiva.car || 'Não informado';
+    
+    // Formatação especial para o CAR
+    if (propriedadeAtiva.car) {
+        campos.car.texto.innerHTML = `<span class="code-value">${propriedadeAtiva.car}</span>`;
+    } else {
+        campos.car.texto.textContent = 'Não informado';
+    }
+    
     campos.itr.texto.textContent = propriedadeAtiva.itr || 'Não informado';
     campos.ccir.texto.textContent = propriedadeAtiva.ccir || 'Não informado';
     
@@ -387,7 +394,15 @@ function carregarDadosLocais() {
 // Atualizar visualização de uma propriedade
 function atualizarVisualizacaoPropriedade(propriedade) {
     document.getElementById('info-matricula').textContent = propriedade.matricula || 'Não informado';
-    document.getElementById('info-car').textContent = propriedade.car || 'Não informado';
+    
+    // Formatação especial para o CAR
+    const carEl = document.getElementById('info-car');
+    if (propriedade.car) {
+        carEl.innerHTML = `<span class="code-value">${propriedade.car}</span>`;
+    } else {
+        carEl.textContent = 'Não informado';
+    }
+    
     document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
     document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
 } 

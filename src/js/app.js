@@ -5,6 +5,18 @@ window.camadaAtiva = null;
 
 // Inicialização do mapa
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("Aplicação iniciada. Verificando ambiente...");
+    
+    // Log do URL atual
+    console.log("URL atual:", window.location.href);
+    
+    // Verificar conexão com a internet
+    verificarConexao();
+    
+    // Verificar se as bibliotecas estão carregadas
+    verificarBibliotecas();
+    
+    // Inicializar componentes
     inicializarMapa();
     configurarEventos();
     carregarDadosIniciais();
@@ -12,8 +24,62 @@ document.addEventListener('DOMContentLoaded', () => {
     // Carregar dados salvos localmente (se houver)
     if (typeof carregarDadosLocais === 'function') {
         carregarDadosLocais();
+    } else {
+        console.warn("A função carregarDadosLocais não está disponível!");
     }
 });
+
+// Verificar conexão com a internet
+function verificarConexao() {
+    if (navigator.onLine) {
+        console.log("Dispositivo conectado à internet");
+    } else {
+        console.warn("Dispositivo offline! Alguns recursos podem não funcionar");
+        alert("Você está offline. Os mapas e imagens de satélite podem não carregar corretamente.");
+    }
+    
+    // Monitorar mudanças na conectividade
+    window.addEventListener('online', () => {
+        console.log("Dispositivo conectado à internet");
+        // Recarregar os tiles do mapa se o mapa já estiver inicializado
+        if (window.mapaAtual) {
+            window.mapaAtual.invalidateSize();
+        }
+    });
+    
+    window.addEventListener('offline', () => {
+        console.warn("Dispositivo offline!");
+        alert("Você está offline. Os mapas e imagens de satélite podem não carregar corretamente.");
+    });
+}
+
+// Verificar se as bibliotecas necessárias estão carregadas
+function verificarBibliotecas() {
+    let todasCarregadas = true;
+    
+    // Lista de bibliotecas necessárias
+    const bibliotecas = [
+        { nome: "Leaflet", obj: "L" },
+        { nome: "Leaflet-Omnivore", obj: "omnivore" },
+        { nome: "JSZip", obj: "JSZip" },
+        { nome: "ShpJS", obj: "shp" }
+    ];
+    
+    bibliotecas.forEach(lib => {
+        if (typeof window[lib.obj] !== 'undefined') {
+            console.log(`${lib.nome} carregado com sucesso`);
+        } else {
+            console.error(`ERRO: ${lib.nome} não foi carregado!`);
+            todasCarregadas = false;
+        }
+    });
+    
+    if (!todasCarregadas) {
+        alert("Algumas bibliotecas necessárias não foram carregadas. O aplicativo pode não funcionar corretamente. Tente recarregar a página.");
+    }
+    
+    return todasCarregadas;
+}
 
 // Função para inicializar o mapa Leaflet
 function inicializarMapa() {
@@ -484,17 +550,20 @@ function carregarDadosIniciais() {
     
     if (idProdutor) {
         // Tentar carregar arquivo KML específico para este produtor
-        const arquivoKML = `src/data/produtor_${idProdutor}.kml`;
+        const arquivoKML = `./src/data/produtor_${idProdutor}.kml`;
+        console.log(`Tentando carregar arquivo KML: ${arquivoKML}`);
         
         fetch(arquivoKML)
             .then(response => {
+                console.log(`Resposta do servidor para ${arquivoKML}:`, response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error('Arquivo não encontrado');
+                    throw new Error(`Arquivo não encontrado (${response.status})`);
                 }
                 return response.text();
             })
             .then(kmlString => {
                 try {
+                    console.log(`KML carregado, tamanho: ${kmlString.length} caracteres`);
                     // Processar o KML
                     const kmlLayer = omnivore.kml.parse(kmlString);
                     adicionarCamadaAoMapa(kmlLayer, `Propriedades do Produtor ${idProdutor}`, 'kml');
@@ -511,6 +580,7 @@ function carregarDadosIniciais() {
                 carregarDoLocalStorage();
             });
     } else {
+        console.log("Nenhum ID de produtor especificado na URL");
         // Verificar se há dados salvos localmente
         carregarDoLocalStorage();
     }

@@ -266,17 +266,33 @@ function cancelarEdicao(campos) {
     document.getElementById('btn-cancelar').style.display = 'none';
 }
 
-// Obter a propriedade ativa
+// Obter a propriedade ativa atualmente mostrada no painel de informações
 function obterPropriedadeAtiva() {
-    // Usar variável global declarada em app.js
-    if (window.propriedades && window.camadaAtiva) {
-        return window.propriedades.find(p => p.camada === window.camadaAtiva);
+    // Se não há camada ativa, não há propriedade ativa
+    if (!window.camadaAtiva) {
+        console.error('Nenhuma camada está ativa no momento.');
+        return null;
     }
-    return null;
+    
+    // Encontrar a propriedade correspondente à camada ativa
+    const propriedadeAtiva = window.propriedades.find(p => p.camada === window.camadaAtiva);
+    
+    if (!propriedadeAtiva) {
+        console.error('Propriedade ativa não encontrada no armazenamento.');
+        return null;
+    }
+    
+    return propriedadeAtiva;
 }
 
 // Salvar dados no localStorage
 function salvarDadosLocalmente() {
+    // Verificar se existe a função global de salvar
+    if (typeof window.salvarDadosLocalmente === 'function') {
+        return window.salvarDadosLocalmente();
+    }
+    
+    // Função local (fallback) caso não exista a global
     // Obter o ID do produtor da URL
     const urlParams = new URLSearchParams(window.location.search);
     const idProdutor = urlParams.get('produtor') || 'default';
@@ -299,8 +315,10 @@ function salvarDadosLocalmente() {
         // Salvar vinculado ao ID do produtor
         localStorage.setItem(`propriedades_${idProdutor}`, JSON.stringify(dadosSalvos));
         console.log(`Dados do produtor ${idProdutor} salvos localmente`);
+        return true;
     } catch (error) {
         console.error('Erro ao salvar dados localmente:', error);
+        return false;
     }
 }
 

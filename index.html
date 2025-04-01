@@ -471,6 +471,33 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="actions-panel">
+                <button id="btn-editar" class="btn-action">Editar</button>
+                <button id="btn-salvar" class="btn-action" style="display: none;">Salvar</button>
+                <button id="btn-cancelar" class="btn-action" style="display: none;">Cancelar</button>
+                <button id="btn-excluir" class="btn-action btn-danger">Excluir</button>
+            </div>
+            
+            <!-- Campos de edição ocultos -->
+            <input type="text" id="edit-area" class="edit-field" style="display: none;">
+            <input type="text" id="edit-matricula" class="edit-field" style="display: none;">
+            <input type="text" id="edit-car" class="edit-field" style="display: none;">
+            <input type="text" id="edit-itr" class="edit-field" style="display: none;">
+            <input type="text" id="edit-ccir" class="edit-field" style="display: none;">
+        </div>
+        
+        <!-- Modal de confirmação para exclusão -->
+        <div id="modal-confirmacao" class="modal">
+            <div class="modal-content">
+                <h2>Confirmar Exclusão</h2>
+                <p>Tem certeza que deseja excluir esta propriedade?</p>
+                <p>Esta ação não pode ser desfeita.</p>
+                <div class="modal-actions">
+                    <button id="btn-confirmar-exclusao" class="btn-action btn-danger">Sim, Excluir</button>
+                    <button id="btn-cancelar-exclusao" class="btn-action">Cancelar</button>
+                </div>
+            </div>
         </div>
     </main>
     
@@ -481,6 +508,7 @@
     <!-- JavaScript do aplicativo -->
     <script src="./src/js/app.js"></script>
     <script src="./src/js/armazenamento.js"></script>
+    <script src="./src/js/editor.js"></script>
     
     <!-- Script para iniciar manualmente -->
     <script>

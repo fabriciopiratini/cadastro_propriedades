@@ -457,7 +457,6 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
             });
         } catch (e) {
             console.warn("Não foi possível definir estilo para a camada:", e);
-            // Continuar mesmo se falhar o estilo
         }
         
         // Adicionar interatividade
@@ -473,9 +472,8 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
                         nome: props.name || props.Nome || nome.replace(/\.[^/.]+$/, ""),
                         camada: l,
                         tipo: tipo,
-                        area: "Calculando...", // Iniciar com "Calculando..." e atualizar depois
+                        area: "Calculando...",
                         propriedades: props,
-                        // Campos para documentos
                         matricula: props.MATRICULA || props.Matricula || '',
                         car: props.CAR || props.Car || '',
                         itr: props.ITR || props.Itr || '',
@@ -489,112 +487,64 @@ window.adicionarCamadaAoMapa = function(layer, nome, tipo) {
                     }
                     window.propriedades.push(propriedade);
                     
-                    // Calcular área após um pequeno atraso para garantir que a camada seja renderizada
+                    // Calcular área após um pequeno atraso
                     setTimeout(() => {
                         try {
                             if (typeof window.calcularArea === 'function') {
                                 propriedade.area = window.calcularArea(l);
                                 console.log(`Área calculada para ${propriedade.nome}: ${propriedade.area} ha`);
-                                
-                                // Atualizar interface se a propriedade estiver selecionada
-                                if (window.camadaAtiva === l && document.getElementById('info-area')) {
-                                    document.getElementById('info-area').textContent = propriedade.area + ' ha';
-                                }
                             }
                         } catch (e) {
-                            console.warn("Erro ao calcular área na adição da camada:", e);
+                            console.warn("Erro ao calcular área:", e);
                         }
                     }, 500);
                     
                     // Configurar eventos
-                    try {
-                        l.on({
-                            click: (e) => {
-                                if (typeof window.mostrarInformacoes === 'function') {
-                                    window.mostrarInformacoes(propriedade);
-                                } else {
-                                    console.warn("Função mostrarInformacoes não disponível");
-                                }
-                            },
-                            mouseover: (e) => {
-                                l.setStyle({
-                                    weight: 3,
-                                    fillOpacity: 0.4
-                                });
-                            },
-                            mouseout: (e) => {
-                                if (window.camadaAtiva !== l) {
-                                    try {
-                                        layer.resetStyle(l);
-                                    } catch (e) {
-                                        l.setStyle({
-                                            color: '#2a7e19',
-                                            weight: 2,
-                                            opacity: 0.7,
-                                            fillColor: '#2a7e19',
-                                            fillOpacity: 0.2
-                                        });
-                                    }
-                                }
+                    l.on({
+                        click: (e) => {
+                            console.log("Clique detectado na propriedade:", propriedade.nome);
+                            if (typeof window.mostrarInformacoes === 'function') {
+                                window.mostrarInformacoes(propriedade);
+                            } else {
+                                console.error("Função mostrarInformacoes não encontrada");
                             }
-                        });
-                    } catch (e) {
-                        console.warn("Não foi possível configurar eventos para a camada:", e);
-                    }
+                        },
+                        mouseover: (e) => {
+                            l.setStyle({
+                                weight: 3,
+                                fillOpacity: 0.4
+                            });
+                        },
+                        mouseout: (e) => {
+                            if (window.camadaAtiva !== l) {
+                                l.setStyle({
+                                    color: '#2a7e19',
+                                    weight: 2,
+                                    opacity: 0.7,
+                                    fillColor: '#2a7e19',
+                                    fillOpacity: 0.2
+                                });
+                            }
+                        }
+                    });
                 }
             });
         } catch (e) {
-            console.warn("Erro ao processar camadas:", e);
+            console.warn("Erro ao configurar interatividade:", e);
         }
         
         // Adicionar camada ao mapa
-        try {
-            layer.addTo(window.mapaAtual);
-            console.log("Camada adicionada ao mapa com sucesso");
-        } catch (e) {
-            console.error("Erro ao adicionar camada ao mapa:", e);
-            return false;
-        }
+        layer.addTo(window.mapaAtual);
         
         // Ajustar o zoom para mostrar a nova camada
-        try {
-            window.mapaAtual.fitBounds(layer.getBounds());
-        } catch (e) {
-            console.warn("Não foi possível ajustar zoom para a camada:", e);
-        }
+        window.mapaAtual.fitBounds(layer.getBounds());
         
         // Atualizar a lista de propriedades
-        try {
-            if (typeof window.atualizarListaPropriedades === 'function') {
-                window.atualizarListaPropriedades();
-            } else {
-                console.warn("Função atualizarListaPropriedades não disponível");
-            }
-        } catch (e) {
-            console.warn("Erro ao atualizar lista de propriedades:", e);
-        }
-        
-        // Auto-salvar os dados
-        try {
-            if (typeof window.salvarDadosLocalmente === 'function') {
-                setTimeout(window.salvarDadosLocalmente, 1000);
-            }
-        } catch (e) {
-            console.warn("Erro ao salvar dados:", e);
-        }
-        
-        // Atualizar URL com os perímetros (para compartilhamento)
-        try {
-            if (typeof window.atualizarURLComPerimetros === 'function') {
-                window.atualizarURLComPerimetros();
-            }
-        } catch (e) {
-            console.warn("Erro ao atualizar URL com perímetros:", e);
-        }
+        window.atualizarListaPropriedades();
         
         return true;
     } catch (e) {
-        console.error("Erro geral ao adicionar camada ao mapa:", e);
+        console.error("Erro ao adicionar camada ao mapa:", e);
         return false;
     }
 };
@@ -676,6 +626,8 @@ window.gerarId = function() {
 
 // Mostrar informações da propriedade
 window.mostrarInformacoes = function(propriedade) {
+    console.log("Mostrando informações para:", propriedade.nome);
+    
     // Destacar a camada selecionada
     if (window.camadaAtiva) {
         // Resetar estilo da camada anteriormente ativa
@@ -705,36 +657,62 @@ window.mostrarInformacoes = function(propriedade) {
     });
     
     // Atualizar painel de informações
-    document.getElementById('info-nome').textContent = propriedade.nome;
-    document.getElementById('info-area').textContent = propriedade.area ? `${propriedade.area} ha` : 'N/A';
-    document.getElementById('info-matricula').textContent = propriedade.matricula || 'Não informado';
-    document.getElementById('info-car').textContent = propriedade.car || 'Não informado';
-    document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
-    document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
+    const infoPanel = document.getElementById('propriedade-info');
+    if (!infoPanel) {
+        console.error("Painel de informações não encontrado");
+        return;
+    }
+    
+    // Atualizar campos de informação
+    const infoNome = document.getElementById('info-nome');
+    const infoArea = document.getElementById('info-area');
+    const infoMatricula = document.getElementById('info-matricula');
+    const infoCar = document.getElementById('info-car');
+    const infoItr = document.getElementById('info-itr');
+    const infoCcir = document.getElementById('info-ccir');
+    
+    if (infoNome) infoNome.textContent = propriedade.nome || 'Sem nome';
+    if (infoArea) infoArea.textContent = propriedade.area ? `${propriedade.area} ha` : 'N/A';
+    if (infoMatricula) infoMatricula.textContent = propriedade.matricula || 'Não informado';
+    if (infoCar) infoCar.textContent = propriedade.car || 'Não informado';
+    if (infoItr) infoItr.textContent = propriedade.itr || 'Não informado';
+    if (infoCcir) infoCcir.textContent = propriedade.ccir || 'Não informado';
     
     // Posicionar campos de edição
-    document.getElementById('edit-area').value = propriedade.area || '';
-    document.getElementById('edit-matricula').value = propriedade.matricula || '';
-    document.getElementById('edit-car').value = propriedade.car || '';
-    document.getElementById('edit-itr').value = propriedade.itr || '';
-    document.getElementById('edit-ccir').value = propriedade.ccir || '';
+    const editArea = document.getElementById('edit-area');
+    const editMatricula = document.getElementById('edit-matricula');
+    const editCar = document.getElementById('edit-car');
+    const editItr = document.getElementById('edit-itr');
+    const editCcir = document.getElementById('edit-ccir');
     
-    // Garantir que os campos de edição estão ocultos e os botões no estado correto
+    if (editArea) editArea.value = propriedade.area || '';
+    if (editMatricula) editMatricula.value = propriedade.matricula || '';
+    if (editCar) editCar.value = propriedade.car || '';
+    if (editItr) editItr.value = propriedade.itr || '';
+    if (editCcir) editCcir.value = propriedade.ccir || '';
+    
+    // Garantir que os campos de edição estão ocultos
     const camposEdicao = document.querySelectorAll('.edit-field');
     camposEdicao.forEach(campo => {
-        campo.style.display = 'none';
+        if (campo) campo.style.display = 'none';
     });
     
     // Restaurar botões ao estado inicial
-    document.getElementById('btn-editar').style.display = 'inline-block';
-    document.getElementById('btn-salvar').style.display = 'none';
-    document.getElementById('btn-cancelar').style.display = 'none';
+    const btnEditar = document.getElementById('btn-editar');
+    const btnSalvar = document.getElementById('btn-salvar');
+    const btnCancelar = document.getElementById('btn-cancelar');
+    
+    if (btnEditar) btnEditar.style.display = 'inline-block';
+    if (btnSalvar) btnSalvar.style.display = 'none';
+    if (btnCancelar) btnCancelar.style.display = 'none';
     
     // Mostrar painel
-    document.getElementById('propriedade-info').style.display = 'block';
+    infoPanel.style.display = 'block';
     
     // Destacar na lista
     window.atualizarListaPropriedades(propriedade.id);
+    
+    console.log("Painel de informações atualizado com sucesso");
 };
 
 // Atualizar lista de propriedades

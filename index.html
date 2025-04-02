@@ -433,41 +433,43 @@
             </div>
         </div>
         
-        <div class="info-panel" id="propriedade-info" style="display: none;">
+        <!-- Painel de informações da propriedade -->
+        <div id="propriedade-info" class="info-panel" style="display: none;">
             <div class="info-header">
-                <h2 id="info-titulo">Informações da Propriedade</h2>
-                <button id="close-info">&times;</button>
+                <h2>Informações da Propriedade</h2>
+                <button id="close-info">×</button>
             </div>
+            
             <div class="info-content">
                 <div class="info-section">
                     <h3>Dados Gerais</h3>
                     <div class="info-row">
-                        <span class="info-label">Nome:</span>
-                        <span id="info-nome" class="info-value" contenteditable="true"></span>
+                        <div class="info-label">Nome:</div>
+                        <div class="info-value" id="info-nome"></div>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">Área Total:</span>
-                        <span id="info-area" class="info-value"></span>
+                        <div class="info-label">Área Total:</div>
+                        <div class="info-value" id="info-area"></div>
                     </div>
                 </div>
                 
                 <div class="info-section">
                     <h3>Documentação</h3>
                     <div class="info-row">
-                        <span class="info-label">Matrícula:</span>
-                        <span id="info-matricula" class="info-value" contenteditable="true"></span>
+                        <div class="info-label">Matrícula:</div>
+                        <div class="info-value" id="info-matricula"></div>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">CAR:</span>
-                        <span id="info-car" class="info-value" contenteditable="true"></span>
+                        <div class="info-label">CAR:</div>
+                        <div class="info-value" id="info-car"></div>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">ITR:</span>
-                        <span id="info-itr" class="info-value" contenteditable="true"></span>
+                        <div class="info-label">ITR:</div>
+                        <div class="info-value" id="info-itr"></div>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">CCIR:</span>
-                        <span id="info-ccir" class="info-value" contenteditable="true"></span>
+                        <div class="info-label">CCIR:</div>
+                        <div class="info-value" id="info-ccir"></div>
                     </div>
                 </div>
             </div>
@@ -479,7 +481,7 @@
                 <button id="btn-excluir" class="btn-action btn-danger">Excluir</button>
             </div>
             
-            <!-- Campos de edição ocultos -->
+            <!-- Campos de edição (inicialmente ocultos) -->
             <input type="text" id="edit-area" class="edit-field" style="display: none;">
             <input type="text" id="edit-matricula" class="edit-field" style="display: none;">
             <input type="text" id="edit-car" class="edit-field" style="display: none;">
@@ -487,14 +489,13 @@
             <input type="text" id="edit-ccir" class="edit-field" style="display: none;">
         </div>
         
-        <!-- Modal de confirmação para exclusão -->
+        <!-- Modal de confirmação de exclusão -->
         <div id="modal-confirmacao" class="modal">
             <div class="modal-content">
-                <h2>Confirmar Exclusão</h2>
+                <h3>Confirmar Exclusão</h3>
                 <p>Tem certeza que deseja excluir esta propriedade?</p>
-                <p>Esta ação não pode ser desfeita.</p>
                 <div class="modal-actions">
-                    <button id="btn-confirmar-exclusao" class="btn-action btn-danger">Sim, Excluir</button>
+                    <button id="btn-confirmar-exclusao" class="btn-action btn-danger">Confirmar</button>
                     <button id="btn-cancelar-exclusao" class="btn-action">Cancelar</button>
                 </div>
             </div>

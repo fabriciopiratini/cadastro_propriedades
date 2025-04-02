@@ -1090,6 +1090,7 @@ window.carregarPerimetrosDeDados = function(dados) {
         
         let sucessos = 0;
         let erros = 0;
+        const camadasCarregadas = [];
         
         // Verificar se Leaflet está disponível
         if (typeof L === 'undefined') {
@@ -1139,6 +1140,7 @@ window.carregarPerimetrosDeDados = function(dados) {
                 // Adicionar a camada ao mapa - NÃO chama atualizarURLComPerimetros para evitar loop
                 try {
                     layer.addTo(window.mapaAtual);
+                    camadasCarregadas.push(layer);
                     console.log(`Camada adicionada ao mapa para ${feature.properties.name}`);
                 } catch (e) {
                     console.error("Erro ao adicionar camada ao mapa:", e);
@@ -1218,17 +1220,32 @@ window.carregarPerimetrosDeDados = function(dados) {
             }
         });
         
-        console.log(`Resultados do processamento: ${sucessos} sucessos, ${erros} erros`);
-        
         // Se conseguiu carregar pelo menos uma propriedade
         if (sucessos > 0) {
             // Ajustar o zoom para mostrar todas as camadas
             try {
                 console.log("Ajustando zoom para mostrar todas as camadas...");
-                const grupo = L.featureGroup(window.propriedades.map(p => p.camada));
-                window.mapaAtual.fitBounds(grupo.getBounds());
+                const grupo = L.featureGroup(camadasCarregadas);
+                
+                // Adicionar um pequeno delay para garantir que todas as camadas foram carregadas
+                setTimeout(() => {
+                    try {
+                        const bounds = grupo.getBounds();
+                        if (bounds.isValid()) {
+                            window.mapaAtual.fitBounds(bounds, {
+                                padding: [50, 50], // Adiciona padding para melhor visualização
+                                maxZoom: 15 // Limita o zoom máximo para não ficar muito próximo
+                            });
+                            console.log("Mapa centralizado nas propriedades");
+                        } else {
+                            console.warn("Bounds inválidos, não foi possível centralizar o mapa");
+                        }
+                    } catch (e) {
+                        console.error("Erro ao ajustar zoom:", e);
+                    }
+                }, 500);
             } catch (e) {
-                console.error("Erro ao ajustar zoom:", e);
+                console.error("Erro ao criar grupo de camadas:", e);
             }
             
             // Atualizar a lista de propriedades

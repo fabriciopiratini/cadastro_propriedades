@@ -705,10 +705,12 @@ window.mostrarInformacoes = function(propriedade) {
     });
     
     // Atualizar painel de informações
-    document.getElementById('info-titulo').textContent = propriedade.nome;
     document.getElementById('info-nome').textContent = propriedade.nome;
     document.getElementById('info-area').textContent = propriedade.area ? `${propriedade.area} ha` : 'N/A';
     document.getElementById('info-matricula').textContent = propriedade.matricula || 'Não informado';
+    document.getElementById('info-car').textContent = propriedade.car || 'Não informado';
+    document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
+    document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
     
     // Posicionar campos de edição
     document.getElementById('edit-area').value = propriedade.area || '';
@@ -717,17 +719,6 @@ window.mostrarInformacoes = function(propriedade) {
     document.getElementById('edit-itr').value = propriedade.itr || '';
     document.getElementById('edit-ccir').value = propriedade.ccir || '';
     
-    // Formatação especial para o CAR (código longo)
-    const carEl = document.getElementById('info-car');
-    if (propriedade.car) {
-        carEl.innerHTML = `<span class="code-value">${propriedade.car}</span>`;
-    } else {
-        carEl.textContent = 'Não informado';
-    }
-    
-    document.getElementById('info-itr').textContent = propriedade.itr || 'Não informado';
-    document.getElementById('info-ccir').textContent = propriedade.ccir || 'Não informado';
-    
     // Garantir que os campos de edição estão ocultos e os botões no estado correto
     const camposEdicao = document.querySelectorAll('.edit-field');
     camposEdicao.forEach(campo => {
@@ -735,15 +726,9 @@ window.mostrarInformacoes = function(propriedade) {
     });
     
     // Restaurar botões ao estado inicial
-    if (document.getElementById('btn-editar')) {
-        document.getElementById('btn-editar').style.display = 'inline-block';
-    }
-    if (document.getElementById('btn-salvar')) {
-        document.getElementById('btn-salvar').style.display = 'none';
-    }
-    if (document.getElementById('btn-cancelar')) {
-        document.getElementById('btn-cancelar').style.display = 'none';
-    }
+    document.getElementById('btn-editar').style.display = 'inline-block';
+    document.getElementById('btn-salvar').style.display = 'none';
+    document.getElementById('btn-cancelar').style.display = 'none';
     
     // Mostrar painel
     document.getElementById('propriedade-info').style.display = 'block';

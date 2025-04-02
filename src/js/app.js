@@ -783,14 +783,22 @@ window.atualizarURLComPerimetros = function() {
                 try {
                     if (prop.camada && prop.camada.toGeoJSON) {
                         const geoJSON = prop.camada.toGeoJSON();
+                        console.log(`GeoJSON extraído para ${prop.nome}:`, geoJSON);
+                        
                         if (geoJSON && geoJSON.geometry) {
                             geometria = geoJSON.geometry;
-                            console.log(`Geometria extraída com sucesso para ${prop.nome}`);
+                            console.log(`Geometria extraída com sucesso para ${prop.nome}:`, geometria);
+                            
+                            // Verificar se a geometria tem coordenadas válidas
+                            if (!geometria.coordinates || geometria.coordinates.length === 0) {
+                                console.error(`Geometria sem coordenadas válidas para ${prop.nome}`);
+                                return null;
+                            }
                         } else {
-                            console.error(`GeoJSON inválido para ${prop.nome}`);
+                            console.error(`GeoJSON inválido para ${prop.nome}:`, geoJSON);
                         }
                     } else {
-                        console.error(`Camada inválida para ${prop.nome}`);
+                        console.error(`Camada inválida para ${prop.nome}:`, prop.camada);
                     }
                 } catch (e) {
                     console.error(`Erro ao extrair geometria de ${prop.nome}:`, e);
@@ -819,7 +827,7 @@ window.atualizarURLComPerimetros = function() {
                 return;
             }
             
-            console.log(`${dadosCompartilhaveis.length} propriedades preparadas para compartilhamento`);
+            console.log(`${dadosCompartilhaveis.length} propriedades preparadas para compartilhamento:`, dadosCompartilhaveis);
             
             // Compactar os dados para URL
             const dadosJSON = JSON.stringify(dadosCompartilhaveis);
@@ -1063,6 +1071,7 @@ window.descompactarDaURL = function(compactedString) {
 window.carregarPerimetrosDeDados = function(dados) {
     try {
         console.log("Iniciando carregamento de perímetros de dados compartilhados...");
+        console.log("Dados recebidos:", dados);
         
         // Verificar se há um mapa inicializado
         if (!window.mapaAtual) {
@@ -1089,7 +1098,7 @@ window.carregarPerimetrosDeDados = function(dados) {
                 // Tentar converter para array se for um objeto
                 if (typeof dados === 'object') {
                     dados = [dados];
-                    console.log("Convertido objeto único para array");
+                    console.log("Convertido objeto único para array:", dados);
                 } else {
                     if (typeof window.mostrarMensagemImportacao === 'function') {
                         window.mostrarMensagemImportacao("Formato de dados incompatível.");
@@ -1133,6 +1142,7 @@ window.carregarPerimetrosDeDados = function(dados) {
         dados.forEach((prop, index) => {
             try {
                 console.log(`Processando propriedade ${index + 1}/${dados.length}: ${prop.nome || 'Sem nome'}`);
+                console.log("Dados da propriedade:", prop);
                 
                 // Verificar se temos geometria
                 if (!prop.geometria) {
@@ -1143,7 +1153,7 @@ window.carregarPerimetrosDeDados = function(dados) {
                 
                 // Verificar se a geometria é válida
                 if (!prop.geometria.coordinates || prop.geometria.coordinates.length === 0) {
-                    console.error(`Geometria inválida para propriedade ${index + 1}`);
+                    console.error(`Geometria inválida para propriedade ${index + 1}:`, prop.geometria);
                     erros++;
                     return;
                 }
@@ -1161,7 +1171,7 @@ window.carregarPerimetrosDeDados = function(dados) {
                     geometry: prop.geometria
                 };
                 
-                console.log(`GeoJSON criado para ${feature.properties.name}`);
+                console.log(`GeoJSON criado para ${feature.properties.name}:`, feature);
                 
                 // Criar uma camada Leaflet com o GeoJSON
                 const layer = L.geoJSON(feature);

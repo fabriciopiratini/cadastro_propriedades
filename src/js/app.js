@@ -1025,31 +1025,58 @@ window.compactarParaURL = function(jsonString) {
 window.descompactarDaURL = function(compactedString) {
     try {
         console.log("Tentando descompactar dados da URL...");
+        console.log("String compactada recebida:", compactedString);
         
         // Primeiro decodificar a URL
         const decodedString = decodeURIComponent(compactedString);
-        console.log("String decodificada da URL com sucesso");
+        console.log("String decodificada da URL:", decodedString);
+        
+        // Verificar se já é um JSON válido
+        try {
+            const jsonData = JSON.parse(decodedString);
+            console.log("Dados já estão em formato JSON válido:", jsonData);
+            return decodedString;
+        } catch (jsonError) {
+            console.log("Não é um JSON válido, tentando decodificar base64...");
+        }
         
         // Tentar converter de base64
         try {
             const base64Decoded = atob(decodedString);
-            console.log("Decodificação base64 realizada com sucesso");
+            console.log("Decodificação base64 realizada");
             
             // Verificar se pako está disponível
             if (typeof window.pako !== 'undefined') {
                 try {
                     // Converter para array de bytes
                     const byteArray = new Uint8Array(base64Decoded.split('').map(c => c.charCodeAt(0)));
+                    console.log("Array de bytes criado:", byteArray);
                     
                     // Descomprimir usando pako
                     const inflated = window.pako.inflate(byteArray, { to: 'string' });
-                    console.log("Descompressão com pako realizada com sucesso");
+                    console.log("Dados descomprimidos com pako:", inflated);
+                    
+                    // Verificar se é um JSON válido
+                    try {
+                        const jsonData = JSON.parse(inflated);
+                        console.log("Dados descomprimidos são JSON válido:", jsonData);
+                        return inflated;
+                    } catch (jsonError) {
+                        console.error("Dados descomprimidos não são JSON válido:", jsonError);
+                    }
+                    
                     return inflated;
                 } catch (pakoError) {
                     console.error("Erro na descompressão pako:", pakoError);
-                    // Tentar usar o conteúdo base64 diretamente como JSON
-                    console.log("Tentando usar o conteúdo base64 como JSON...");
-                    return base64Decoded;
+                    // Tentar usar o conteúdo base64 diretamente
+                    try {
+                        const jsonData = JSON.parse(base64Decoded);
+                        console.log("Base64 decodificado é JSON válido:", jsonData);
+                        return base64Decoded;
+                    } catch (jsonError) {
+                        console.error("Base64 decodificado não é JSON válido:", jsonError);
+                        return base64Decoded;
+                    }
                 }
             } else {
                 console.warn("Biblioteca pako não encontrada, usando apenas decodificação base64");
@@ -1071,7 +1098,22 @@ window.descompactarDaURL = function(compactedString) {
 window.carregarPerimetrosDeDados = function(dados) {
     try {
         console.log("Iniciando carregamento de perímetros de dados compartilhados...");
-        console.log("Dados recebidos:", dados);
+        console.log("Dados recebidos (tipo):", typeof dados);
+        console.log("Dados recebidos (raw):", dados);
+        
+        // Se os dados forem uma string, tentar fazer parse
+        if (typeof dados === 'string') {
+            try {
+                dados = JSON.parse(dados);
+                console.log("Dados convertidos de string para objeto:", dados);
+            } catch (parseError) {
+                console.error("Erro ao fazer parse dos dados:", parseError);
+                if (typeof window.mostrarMensagemImportacao === 'function') {
+                    window.mostrarMensagemImportacao("Erro ao processar dados compartilhados: formato inválido");
+                }
+                return false;
+            }
+        }
         
         // Verificar se há um mapa inicializado
         if (!window.mapaAtual) {
@@ -1093,7 +1135,7 @@ window.carregarPerimetrosDeDados = function(dados) {
         
         // Verificar se temos um array
         if (!Array.isArray(dados)) {
-            console.error("Os dados compartilhados não são um array:", typeof dados);
+            console.error("Os dados compartilhados não são um array:", typeof dados, dados);
             try {
                 // Tentar converter para array se for um objeto
                 if (typeof dados === 'object') {

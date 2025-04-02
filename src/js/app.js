@@ -758,8 +758,11 @@ window.atualizarURLComPerimetros = function() {
     try {
         // Verificar se há propriedades para compartilhar
         if (!window.propriedades || window.propriedades.length === 0) {
+            console.warn("Nenhuma propriedade para compartilhar");
             return;
         }
+        
+        console.log(`Preparando ${window.propriedades.length} propriedades para compartilhamento`);
         
         // Verificar se pako está disponível - se não estiver, apenas logar um aviso
         if (typeof window.pako === 'undefined') {
@@ -773,14 +776,29 @@ window.atualizarURLComPerimetros = function() {
         try {
             // Criar versão compartilhável dos dados
             const dadosCompartilhaveis = window.propriedades.map(prop => {
+                console.log(`Processando propriedade: ${prop.nome}`);
+                
                 // Extrair geometria da propriedade
                 let geometria = null;
                 try {
                     if (prop.camada && prop.camada.toGeoJSON) {
-                        geometria = prop.camada.toGeoJSON().geometry;
+                        const geoJSON = prop.camada.toGeoJSON();
+                        if (geoJSON && geoJSON.geometry) {
+                            geometria = geoJSON.geometry;
+                            console.log(`Geometria extraída com sucesso para ${prop.nome}`);
+                        } else {
+                            console.error(`GeoJSON inválido para ${prop.nome}`);
+                        }
+                    } else {
+                        console.error(`Camada inválida para ${prop.nome}`);
                     }
                 } catch (e) {
-                    console.error("Erro ao extrair geometria:", e);
+                    console.error(`Erro ao extrair geometria de ${prop.nome}:`, e);
+                }
+                
+                if (!geometria) {
+                    console.error(`Não foi possível extrair geometria para ${prop.nome}`);
+                    return null;
                 }
                 
                 return {
@@ -794,7 +812,14 @@ window.atualizarURLComPerimetros = function() {
                     ccir: prop.ccir,
                     geometria: geometria
                 };
-            });
+            }).filter(prop => prop !== null); // Remover propriedades sem geometria
+            
+            if (dadosCompartilhaveis.length === 0) {
+                console.error("Nenhuma propriedade válida para compartilhar");
+                return;
+            }
+            
+            console.log(`${dadosCompartilhaveis.length} propriedades preparadas para compartilhamento`);
             
             // Compactar os dados para URL
             const dadosJSON = JSON.stringify(dadosCompartilhaveis);
@@ -821,14 +846,17 @@ window.atualizarURLComPerimetros = function() {
                         }
                         
                         dadosCompactados = encodeURIComponent(btoa(base64String));
+                        console.log("Dados compactados com sucesso usando pako");
                     } else {
                         // Fallback para base64 apenas
                         dadosCompactados = encodeURIComponent(btoa(dadosJSON));
+                        console.log("Dados compactados com sucesso usando base64");
                     }
                 } catch (e) {
                     console.error("Erro ao compactar localmente:", e);
                     // Último recurso
                     dadosCompactados = encodeURIComponent(dadosJSON);
+                    console.log("Usando dados não compactados como último recurso");
                 }
             }
             
@@ -841,7 +869,7 @@ window.atualizarURLComPerimetros = function() {
                 try {
                     const novaURL = window.location.pathname + '?' + urlParams.toString();
                     window.history.replaceState({}, '', novaURL);
-                    console.log("URL atualizada com os dados dos perímetros para compartilhamento");
+                    console.log("URL atualizada com sucesso para compartilhamento");
                 } catch (urlError) {
                     console.error("Erro ao atualizar URL:", urlError);
                 }
@@ -1034,7 +1062,7 @@ window.descompactarDaURL = function(compactedString) {
 // Função para carregar perímetros a partir de dados compartilhados
 window.carregarPerimetrosDeDados = function(dados) {
     try {
-        console.log("Carregando perímetros de dados compartilhados...");
+        console.log("Iniciando carregamento de perímetros de dados compartilhados...");
         
         // Verificar se há um mapa inicializado
         if (!window.mapaAtual) {
@@ -1111,6 +1139,13 @@ window.carregarPerimetrosDeDados = function(dados) {
                     console.error(`Propriedade ${index + 1} não tem geometria`);
                     erros++;
                     return; // Continuar para o próximo item
+                }
+                
+                // Verificar se a geometria é válida
+                if (!prop.geometria.coordinates || prop.geometria.coordinates.length === 0) {
+                    console.error(`Geometria inválida para propriedade ${index + 1}`);
+                    erros++;
+                    return;
                 }
                 
                 // Criar um objeto GeoJSON a partir da geometria
@@ -1222,6 +1257,8 @@ window.carregarPerimetrosDeDados = function(dados) {
         
         // Se conseguiu carregar pelo menos uma propriedade
         if (sucessos > 0) {
+            console.log(`${sucessos} propriedades carregadas com sucesso, ${erros} erros`);
+            
             // Ajustar o zoom para mostrar todas as camadas
             try {
                 console.log("Ajustando zoom para mostrar todas as camadas...");
@@ -1266,8 +1303,6 @@ window.carregarPerimetrosDeDados = function(dados) {
                 console.warn("Erro ao salvar dados localmente:", e);
             }
             
-            console.log(`${sucessos} propriedades carregadas com sucesso dos dados compartilhados.`);
-            
             // Remover a tela de carregamento se ainda estiver visível
             try {
                 const loadingIndicator = document.getElementById('loading-indicator');
@@ -1275,30 +1310,21 @@ window.carregarPerimetrosDeDados = function(dados) {
                     loadingIndicator.style.display = 'none';
                 }
             } catch (e) {
-                console.warn("Erro ao ocultar indicador de carregamento:", e);
-            }
-            
-            if (erros > 0) {
-                // Mostrar mensagem de alerta se houve alguns erros
-                try {
-                    alert(`Algumas propriedades (${erros}) não puderam ser carregadas. Verifique o console para mais detalhes.`);
-                } catch (e) {
-                    console.warn("Erro ao mostrar alerta:", e);
-                }
+                console.warn("Erro ao remover indicador de carregamento:", e);
             }
             
             return true;
         } else {
-            console.error("Nenhuma propriedade pôde ser carregada dos dados compartilhados");
+            console.error("Nenhuma propriedade foi carregada com sucesso");
             if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Não foi possível carregar os perímetros compartilhados. Tente importar novamente.");
+                window.mostrarMensagemImportacao("Não foi possível carregar nenhuma propriedade dos dados compartilhados.");
             }
             return false;
         }
-    } catch (e) {
-        console.error("Erro geral ao carregar perímetros dos dados:", e);
+    } catch (error) {
+        console.error("Erro geral ao carregar perímetros:", error);
         if (typeof window.mostrarMensagemImportacao === 'function') {
-            window.mostrarMensagemImportacao("Erro ao processar os dados. Verifique o console para mais detalhes.");
+            window.mostrarMensagemImportacao("Ocorreu um erro ao carregar os dados compartilhados.");
         }
         return false;
     }

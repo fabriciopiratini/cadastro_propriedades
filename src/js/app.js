@@ -764,131 +764,95 @@ window.atualizarURLComPerimetros = function() {
         
         console.log(`Preparando ${window.propriedades.length} propriedades para compartilhamento`);
         
-        // Verificar se pako está disponível - se não estiver, apenas logar um aviso
-        if (typeof window.pako === 'undefined') {
-            console.warn("A biblioteca pako não está disponível. A URL será gerada sem compressão.");
+        // Criar versão compartilhável dos dados
+        const dadosCompartilhaveis = window.propriedades.map(prop => {
+            console.log(`Processando propriedade: ${prop.nome}`);
+            
+            // Extrair geometria da propriedade
+            let geometria = null;
+            try {
+                if (prop.camada && prop.camada.toGeoJSON) {
+                    const geoJSON = prop.camada.toGeoJSON();
+                    if (geoJSON && geoJSON.geometry) {
+                        geometria = geoJSON.geometry;
+                        // Validar coordenadas
+                        if (!geometria.coordinates || geometria.coordinates.length === 0) {
+                            console.error(`Geometria sem coordenadas válidas para ${prop.nome}`);
+                            return null;
+                        }
+                        console.log(`Geometria válida extraída para ${prop.nome}`);
+                    }
+                }
+            } catch (e) {
+                console.error(`Erro ao extrair geometria de ${prop.nome}:`, e);
+                return null;
+            }
+            
+            if (!geometria) {
+                console.error(`Não foi possível extrair geometria para ${prop.nome}`);
+                return null;
+            }
+            
+            // Criar objeto com dados mínimos necessários
+            return {
+                id: prop.id,
+                nome: prop.nome,
+                tipo: prop.tipo,
+                area: prop.area,
+                matricula: prop.matricula || '',
+                car: prop.car || '',
+                itr: prop.itr || '',
+                ccir: prop.ccir || '',
+                geometria: geometria
+            };
+        }).filter(prop => prop !== null);
+        
+        if (dadosCompartilhaveis.length === 0) {
+            console.error("Nenhuma propriedade válida para compartilhar");
+            return;
         }
         
-        // Obter parâmetros atuais da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const idProdutor = urlParams.get('produtor') || 'default';
+        // Compactar os dados
+        const dadosJSON = JSON.stringify(dadosCompartilhaveis);
+        console.log("Tamanho dos dados JSON:", dadosJSON.length);
         
+        let dadosCompactados;
         try {
-            // Criar versão compartilhável dos dados
-            const dadosCompartilhaveis = window.propriedades.map(prop => {
-                console.log(`Processando propriedade: ${prop.nome}`);
-                
-                // Extrair geometria da propriedade
-                let geometria = null;
-                try {
-                    if (prop.camada && prop.camada.toGeoJSON) {
-                        const geoJSON = prop.camada.toGeoJSON();
-                        console.log(`GeoJSON extraído para ${prop.nome}:`, geoJSON);
-                        
-                        if (geoJSON && geoJSON.geometry) {
-                            geometria = geoJSON.geometry;
-                            console.log(`Geometria extraída com sucesso para ${prop.nome}:`, geometria);
-                            
-                            // Verificar se a geometria tem coordenadas válidas
-                            if (!geometria.coordinates || geometria.coordinates.length === 0) {
-                                console.error(`Geometria sem coordenadas válidas para ${prop.nome}`);
-                                return null;
-                            }
-                        } else {
-                            console.error(`GeoJSON inválido para ${prop.nome}:`, geoJSON);
-                        }
-                    } else {
-                        console.error(`Camada inválida para ${prop.nome}:`, prop.camada);
-                    }
-                } catch (e) {
-                    console.error(`Erro ao extrair geometria de ${prop.nome}:`, e);
-                }
-                
-                if (!geometria) {
-                    console.error(`Não foi possível extrair geometria para ${prop.nome}`);
-                    return null;
-                }
-                
-                return {
-                    id: prop.id,
-                    nome: prop.nome,
-                    tipo: prop.tipo,
-                    area: prop.area,
-                    matricula: prop.matricula,
-                    car: prop.car,
-                    itr: prop.itr,
-                    ccir: prop.ccir,
-                    geometria: geometria
-                };
-            }).filter(prop => prop !== null); // Remover propriedades sem geometria
-            
-            if (dadosCompartilhaveis.length === 0) {
-                console.error("Nenhuma propriedade válida para compartilhar");
-                return;
-            }
-            
-            console.log(`${dadosCompartilhaveis.length} propriedades preparadas para compartilhamento:`, dadosCompartilhaveis);
-            
-            // Compactar os dados para URL
-            const dadosJSON = JSON.stringify(dadosCompartilhaveis);
-            let dadosCompactados;
-            
-            if (typeof window.compactarParaURL === 'function') {
-                dadosCompactados = window.compactarParaURL(dadosJSON);
+            if (typeof window.pako !== 'undefined') {
+                // Compactar usando pako
+                const compressedArray = window.pako.deflate(dadosJSON);
+                const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedArray)));
+                dadosCompactados = encodeURIComponent(base64String);
+                console.log("Dados compactados com pako, tamanho:", dadosCompactados.length);
             } else {
-                console.warn("Função compactarParaURL não disponível, tentando compactar localmente");
-                try {
-                    // Verificar se pako está disponível
-                    if (typeof window.pako !== 'undefined') {
-                        // Compactar usando LZ-based compression
-                        const compressedArray = window.pako.deflate(dadosJSON);
-                        
-                        // Converter para string base64
-                        let base64String = '';
-                        const byteArray = new Uint8Array(compressedArray);
-                        const chunkSize = 32767;
-                        
-                        for (let i = 0; i < byteArray.length; i += chunkSize) {
-                            const chunk = byteArray.slice(i, i + chunkSize);
-                            base64String += String.fromCharCode.apply(null, chunk);
-                        }
-                        
-                        dadosCompactados = encodeURIComponent(btoa(base64String));
-                        console.log("Dados compactados com sucesso usando pako");
-                    } else {
-                        // Fallback para base64 apenas
-                        dadosCompactados = encodeURIComponent(btoa(dadosJSON));
-                        console.log("Dados compactados com sucesso usando base64");
-                    }
-                } catch (e) {
-                    console.error("Erro ao compactar localmente:", e);
-                    // Último recurso
-                    dadosCompactados = encodeURIComponent(dadosJSON);
-                    console.log("Usando dados não compactados como último recurso");
-                }
+                // Fallback para base64
+                dadosCompactados = encodeURIComponent(btoa(dadosJSON));
+                console.log("Dados compactados com base64, tamanho:", dadosCompactados.length);
             }
             
-            // Verificar se a compactação foi bem sucedida
-            if (dadosCompactados) {
-                // Criar nova URL com os dados
-                urlParams.set('data', dadosCompactados);
-                
-                // Atualizar URL sem recarregar a página
-                try {
-                    const novaURL = window.location.pathname + '?' + urlParams.toString();
-                    window.history.replaceState({}, '', novaURL);
-                    console.log("URL atualizada com sucesso para compartilhamento");
-                } catch (urlError) {
-                    console.error("Erro ao atualizar URL:", urlError);
-                }
-            } else {
-                console.error("Falha ao compactar dados para URL");
+            // Verificar tamanho da URL resultante
+            const urlBase = window.location.origin + window.location.pathname;
+            const urlCompleta = urlBase + '?data=' + dadosCompactados;
+            
+            if (urlCompleta.length > 2000) {
+                console.warn("AVISO: URL muito longa (>2000 caracteres). Alguns navegadores podem truncá-la.");
             }
-        } catch (dataError) {
-            console.error("Erro ao processar dados das propriedades:", dataError);
+            
+            // Atualizar URL
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('data', dadosCompactados);
+            const novaURL = window.location.pathname + '?' + urlParams.toString();
+            window.history.replaceState({}, '', novaURL);
+            console.log("URL atualizada com sucesso");
+            
+            return true;
+        } catch (e) {
+            console.error("Erro ao compactar dados:", e);
+            return false;
         }
     } catch (error) {
-        console.error("Erro geral ao atualizar URL com perímetros:", error);
+        console.error("Erro geral ao atualizar URL:", error);
+        return false;
     }
 };
 
@@ -978,229 +942,76 @@ function gerarLinkCompartilhavel() {
     });
 }
 
-// Função para compactar dados para URL
-window.compactarParaURL = function(jsonString) {
-    try {
-        // Verificar se pako está disponível
-        if (typeof window.pako !== 'undefined') {
-            console.log("Usando pako para compactar dados");
-            try {
-                // Compactar usando LZ-based compression
-                const compressedArray = window.pako.deflate(jsonString);
-                
-                // Converter para string base64
-                let base64String = '';
-                const byteArray = new Uint8Array(compressedArray);
-                const chunkSize = 32767; // Dividir em pedaços para evitar problemas com String.fromCharCode
-                
-                for (let i = 0; i < byteArray.length; i += chunkSize) {
-                    const chunk = byteArray.slice(i, i + chunkSize);
-                    base64String += String.fromCharCode.apply(null, chunk);
-                }
-                
-                return encodeURIComponent(btoa(base64String));
-            } catch (compressionError) {
-                console.error("Erro na compressão pako:", compressionError);
-                // Fallback para base64
-                return encodeURIComponent(btoa(jsonString));
-            }
-        } else {
-            console.warn("Pako não disponível, usando apenas codificação base64");
-            return encodeURIComponent(btoa(jsonString));
-        }
-    } catch (e) {
-        console.error("Erro ao compactar dados:", e);
-        // Último recurso: usar apenas URL encoding
-        try {
-            return encodeURIComponent(jsonString);
-        } catch (encodeError) {
-            console.error("Erro até mesmo no encoding básico:", encodeError);
-            // Não há mais o que fazer, retornar string original
-            return jsonString;
-        }
-    }
-};
-
-// Função para descompactar dados da URL
-window.descompactarDaURL = function(compactedString) {
-    try {
-        console.log("Tentando descompactar dados da URL...");
-        console.log("String compactada recebida:", compactedString);
-        
-        // Primeiro decodificar a URL
-        const decodedString = decodeURIComponent(compactedString);
-        console.log("String decodificada da URL:", decodedString);
-        
-        // Verificar se já é um JSON válido
-        try {
-            const jsonData = JSON.parse(decodedString);
-            console.log("Dados já estão em formato JSON válido:", jsonData);
-            return decodedString;
-        } catch (jsonError) {
-            console.log("Não é um JSON válido, tentando decodificar base64...");
-        }
-        
-        // Tentar converter de base64
-        try {
-            const base64Decoded = atob(decodedString);
-            console.log("Decodificação base64 realizada");
-            
-            // Verificar se pako está disponível
-            if (typeof window.pako !== 'undefined') {
-                try {
-                    // Converter para array de bytes
-                    const byteArray = new Uint8Array(base64Decoded.split('').map(c => c.charCodeAt(0)));
-                    console.log("Array de bytes criado:", byteArray);
-                    
-                    // Descomprimir usando pako
-                    const inflated = window.pako.inflate(byteArray, { to: 'string' });
-                    console.log("Dados descomprimidos com pako:", inflated);
-                    
-                    // Verificar se é um JSON válido
-                    try {
-                        const jsonData = JSON.parse(inflated);
-                        console.log("Dados descomprimidos são JSON válido:", jsonData);
-                        return inflated;
-                    } catch (jsonError) {
-                        console.error("Dados descomprimidos não são JSON válido:", jsonError);
-                    }
-                    
-                    return inflated;
-                } catch (pakoError) {
-                    console.error("Erro na descompressão pako:", pakoError);
-                    // Tentar usar o conteúdo base64 diretamente
-                    try {
-                        const jsonData = JSON.parse(base64Decoded);
-                        console.log("Base64 decodificado é JSON válido:", jsonData);
-                        return base64Decoded;
-                    } catch (jsonError) {
-                        console.error("Base64 decodificado não é JSON válido:", jsonError);
-                        return base64Decoded;
-                    }
-                }
-            } else {
-                console.warn("Biblioteca pako não encontrada, usando apenas decodificação base64");
-                return base64Decoded;
-            }
-        } catch (base64Error) {
-            console.error("Erro na decodificação base64:", base64Error);
-            // Tentar usar a string decodificada diretamente
-            return decodedString;
-        }
-    } catch (mainError) {
-        console.error("Erro principal na descompactação:", mainError);
-        // Último recurso - retornar a string original
-        return compactedString;
-    }
-};
-
 // Função para carregar perímetros a partir de dados compartilhados
 window.carregarPerimetrosDeDados = function(dados) {
     try {
         console.log("Iniciando carregamento de perímetros de dados compartilhados...");
-        console.log("Dados recebidos (tipo):", typeof dados);
-        console.log("Dados recebidos (raw):", dados);
-        
-        // Se os dados forem uma string, tentar fazer parse
-        if (typeof dados === 'string') {
-            try {
-                dados = JSON.parse(dados);
-                console.log("Dados convertidos de string para objeto:", dados);
-            } catch (parseError) {
-                console.error("Erro ao fazer parse dos dados:", parseError);
-                if (typeof window.mostrarMensagemImportacao === 'function') {
-                    window.mostrarMensagemImportacao("Erro ao processar dados compartilhados: formato inválido");
-                }
-                return false;
-            }
-        }
         
         // Verificar se há um mapa inicializado
         if (!window.mapaAtual) {
-            console.error("Mapa não inicializado.");
-            if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Não foi possível carregar os dados: mapa não inicializado.");
-            }
+            console.error("Mapa não inicializado");
+            alert("Erro: O mapa não foi inicializado corretamente. Por favor, recarregue a página.");
             return false;
         }
         
         // Verificar se os dados são válidos
         if (!dados) {
             console.error("Dados inválidos (nulos ou indefinidos)");
-            if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Não foi possível carregar os dados compartilhados (dados inválidos).");
-            }
+            alert("Erro: Os dados compartilhados são inválidos.");
             return false;
         }
         
-        // Verificar se temos um array
-        if (!Array.isArray(dados)) {
-            console.error("Os dados compartilhados não são um array:", typeof dados, dados);
+        // Se os dados forem uma string, tentar converter para objeto
+        if (typeof dados === 'string') {
             try {
-                // Tentar converter para array se for um objeto
-                if (typeof dados === 'object') {
-                    dados = [dados];
-                    console.log("Convertido objeto único para array:", dados);
-                } else {
-                    if (typeof window.mostrarMensagemImportacao === 'function') {
-                        window.mostrarMensagemImportacao("Formato de dados incompatível.");
-                    }
-                    return false;
-                }
-            } catch (e) {
-                console.error("Erro ao tentar converter dados:", e);
-                if (typeof window.mostrarMensagemImportacao === 'function') {
-                    window.mostrarMensagemImportacao("Erro ao processar os dados compartilhados.");
-                }
+                dados = JSON.parse(dados);
+                console.log("Dados convertidos de string para objeto");
+            } catch (parseError) {
+                console.error("Erro ao fazer parse dos dados:", parseError);
+                alert("Erro: O formato dos dados compartilhados é inválido.");
                 return false;
             }
         }
         
-        // Verificar se o array está vazio
-        if (dados.length === 0) {
-            console.error("Array de dados vazio");
-            if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Nenhum dado encontrado para carregar.");
+        // Garantir que temos um array
+        if (!Array.isArray(dados)) {
+            if (typeof dados === 'object') {
+                dados = [dados];
+                console.log("Objeto único convertido para array");
+            } else {
+                console.error("Formato de dados incompatível:", typeof dados);
+                alert("Erro: O formato dos dados compartilhados é incompatível.");
+                return false;
             }
+        }
+        
+        // Verificar se há dados para processar
+        if (dados.length === 0) {
+            console.error("Nenhum dado para processar");
+            alert("Erro: Nenhuma propriedade encontrada nos dados compartilhados.");
             return false;
         }
         
-        console.log(`Processando ${dados.length} propriedades compartilhadas`);
+        console.log(`Processando ${dados.length} propriedades...`);
+        
+        // Limpar propriedades existentes se necessário
+        window.propriedades = [];
         
         let sucessos = 0;
-        let erros = 0;
         const camadasCarregadas = [];
         
-        // Verificar se Leaflet está disponível
-        if (typeof L === 'undefined') {
-            console.error("Leaflet não está disponível");
-            if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Leaflet não disponível para processar os dados.");
-            }
-            return false;
-        }
-        
-        // Processar cada propriedade nos dados
+        // Processar cada propriedade
         dados.forEach((prop, index) => {
             try {
                 console.log(`Processando propriedade ${index + 1}/${dados.length}: ${prop.nome || 'Sem nome'}`);
-                console.log("Dados da propriedade:", prop);
                 
-                // Verificar se temos geometria
-                if (!prop.geometria) {
-                    console.error(`Propriedade ${index + 1} não tem geometria`);
-                    erros++;
-                    return; // Continuar para o próximo item
-                }
-                
-                // Verificar se a geometria é válida
-                if (!prop.geometria.coordinates || prop.geometria.coordinates.length === 0) {
-                    console.error(`Geometria inválida para propriedade ${index + 1}:`, prop.geometria);
-                    erros++;
+                // Validar geometria
+                if (!prop.geometria || !prop.geometria.coordinates || prop.geometria.coordinates.length === 0) {
+                    console.error(`Geometria inválida para propriedade ${index + 1}`);
                     return;
                 }
                 
-                // Criar um objeto GeoJSON a partir da geometria
+                // Criar feature GeoJSON
                 const feature = {
                     type: 'Feature',
                     properties: {
@@ -1213,171 +1024,148 @@ window.carregarPerimetrosDeDados = function(dados) {
                     geometry: prop.geometria
                 };
                 
-                console.log(`GeoJSON criado para ${feature.properties.name}:`, feature);
+                // Criar camada Leaflet
+                const layer = L.geoJSON(feature, {
+                    style: {
+                        color: '#2a7e19',
+                        weight: 2,
+                        opacity: 0.7,
+                        fillColor: '#2a7e19',
+                        fillOpacity: 0.2
+                    }
+                });
                 
-                // Criar uma camada Leaflet com o GeoJSON
-                const layer = L.geoJSON(feature);
+                // Adicionar ao mapa
+                layer.addTo(window.mapaAtual);
+                camadasCarregadas.push(layer);
                 
-                if (!layer) {
-                    console.error(`Falha ao criar camada Leaflet para propriedade ${index + 1}`);
-                    erros++;
-                    return;
-                }
+                // Criar objeto da propriedade
+                const propriedade = {
+                    id: prop.id || window.gerarId(),
+                    nome: prop.nome || `Propriedade ${index + 1}`,
+                    camada: layer,
+                    tipo: prop.tipo || 'compartilhado',
+                    area: prop.area || window.calcularArea(layer),
+                    matricula: prop.matricula || '',
+                    car: prop.car || '',
+                    itr: prop.itr || '',
+                    ccir: prop.ccir || '',
+                    documentos: []
+                };
                 
-                // Adicionar a camada ao mapa - NÃO chama atualizarURLComPerimetros para evitar loop
-                try {
-                    layer.addTo(window.mapaAtual);
-                    camadasCarregadas.push(layer);
-                    console.log(`Camada adicionada ao mapa para ${feature.properties.name}`);
-                } catch (e) {
-                    console.error("Erro ao adicionar camada ao mapa:", e);
-                    erros++;
-                    return;
-                }
+                // Adicionar ao armazenamento
+                window.propriedades.push(propriedade);
                 
-                // Adicionar interatividade e propriedades
-                try {
-                    layer.eachLayer(function(l) {
-                        if (l.feature) {
-                            // Configurar estilo
-                            l.setStyle({
+                // Configurar eventos
+                layer.on({
+                    click: () => window.mostrarInformacoes(propriedade),
+                    mouseover: () => {
+                        layer.setStyle({
+                            weight: 3,
+                            fillOpacity: 0.4
+                        });
+                    },
+                    mouseout: () => {
+                        if (window.camadaAtiva !== layer) {
+                            layer.setStyle({
                                 color: '#2a7e19',
                                 weight: 2,
                                 opacity: 0.7,
                                 fillColor: '#2a7e19',
                                 fillOpacity: 0.2
                             });
-                            
-                            // Criar objeto da propriedade
-                            const propriedade = {
-                                id: prop.id || (window.gerarId ? window.gerarId() : Math.random().toString(36).substring(2)),
-                                nome: prop.nome || `Propriedade ${index + 1}`,
-                                camada: l,
-                                tipo: prop.tipo || 'compartilhado',
-                                area: prop.area || (window.calcularArea ? window.calcularArea(l) : "N/A"),
-                                propriedades: feature.properties,
-                                matricula: prop.matricula || '',
-                                car: prop.car || '',
-                                itr: prop.itr || '',
-                                ccir: prop.ccir || '',
-                                documentos: []
-                            };
-                            
-                            // Adicionar ao armazenamento
-                            if (!window.propriedades) {
-                                window.propriedades = [];
-                            }
-                            window.propriedades.push(propriedade);
-                            
-                            // Configurar eventos
-                            if (typeof window.mostrarInformacoes === 'function') {
-                                l.on({
-                                    click: (e) => window.mostrarInformacoes(propriedade),
-                                    mouseover: (e) => {
-                                        l.setStyle({
-                                            weight: 3,
-                                            fillOpacity: 0.4
-                                        });
-                                    },
-                                    mouseout: (e) => {
-                                        if (window.camadaAtiva !== l) {
-                                            l.setStyle({
-                                                color: '#2a7e19',
-                                                weight: 2,
-                                                opacity: 0.7,
-                                                fillColor: '#2a7e19',
-                                                fillOpacity: 0.2
-                                            });
-                                        }
-                                    }
-                                });
-                            }
-                            
-                            console.log(`Propriedade ${propriedade.nome} processada com sucesso`);
-                            sucessos++;
                         }
-                    });
-                } catch (e) {
-                    console.error("Erro ao configurar interatividade:", e);
-                    erros++;
-                }
-            } catch (e) {
-                console.error(`Erro ao carregar propriedade ${index + 1}:`, e);
-                erros++;
+                    }
+                });
+                
+                sucessos++;
+            } catch (error) {
+                console.error(`Erro ao processar propriedade ${index + 1}:`, error);
             }
         });
         
-        // Se conseguiu carregar pelo menos uma propriedade
-        if (sucessos > 0) {
-            console.log(`${sucessos} propriedades carregadas com sucesso, ${erros} erros`);
-            
-            // Ajustar o zoom para mostrar todas as camadas
-            try {
-                console.log("Ajustando zoom para mostrar todas as camadas...");
-                const grupo = L.featureGroup(camadasCarregadas);
-                
-                // Adicionar um pequeno delay para garantir que todas as camadas foram carregadas
-                setTimeout(() => {
-                    try {
-                        const bounds = grupo.getBounds();
-                        if (bounds.isValid()) {
-                            window.mapaAtual.fitBounds(bounds, {
-                                padding: [50, 50], // Adiciona padding para melhor visualização
-                                maxZoom: 15 // Limita o zoom máximo para não ficar muito próximo
-                            });
-                            console.log("Mapa centralizado nas propriedades");
-                        } else {
-                            console.warn("Bounds inválidos, não foi possível centralizar o mapa");
-                        }
-                    } catch (e) {
-                        console.error("Erro ao ajustar zoom:", e);
-                    }
-                }, 500);
-            } catch (e) {
-                console.error("Erro ao criar grupo de camadas:", e);
-            }
-            
-            // Atualizar a lista de propriedades
-            try {
-                if (typeof window.atualizarListaPropriedades === 'function') {
-                    window.atualizarListaPropriedades();
-                }
-            } catch (e) {
-                console.warn("Erro ao atualizar lista de propriedades:", e);
-            }
-            
-            // Salvar localmente
-            try {
-                if (typeof window.salvarDadosLocalmente === 'function') {
-                    setTimeout(window.salvarDadosLocalmente, 1000);
-                }
-            } catch (e) {
-                console.warn("Erro ao salvar dados localmente:", e);
-            }
-            
-            // Remover a tela de carregamento se ainda estiver visível
-            try {
-                const loadingIndicator = document.getElementById('loading-indicator');
-                if (loadingIndicator && loadingIndicator.style.display !== 'none') {
-                    loadingIndicator.style.display = 'none';
-                }
-            } catch (e) {
-                console.warn("Erro ao remover indicador de carregamento:", e);
-            }
-            
-            return true;
-        } else {
+        // Verificar resultados
+        if (sucessos === 0) {
             console.error("Nenhuma propriedade foi carregada com sucesso");
-            if (typeof window.mostrarMensagemImportacao === 'function') {
-                window.mostrarMensagemImportacao("Não foi possível carregar nenhuma propriedade dos dados compartilhados.");
-            }
+            alert("Erro: Não foi possível carregar nenhuma propriedade.");
             return false;
         }
-    } catch (error) {
-        console.error("Erro geral ao carregar perímetros:", error);
-        if (typeof window.mostrarMensagemImportacao === 'function') {
-            window.mostrarMensagemImportacao("Ocorreu um erro ao carregar os dados compartilhados.");
+        
+        console.log(`${sucessos} propriedades carregadas com sucesso`);
+        
+        // Ajustar visualização
+        if (camadasCarregadas.length > 0) {
+            const grupo = L.featureGroup(camadasCarregadas);
+            window.mapaAtual.fitBounds(grupo.getBounds(), {
+                padding: [50, 50],
+                maxZoom: 15
+            });
         }
+        
+        // Atualizar interface
+        window.atualizarListaPropriedades();
+        
+        return true;
+    } catch (error) {
+        console.error("Erro fatal ao carregar perímetros:", error);
+        alert("Erro: Ocorreu um problema ao carregar as propriedades.");
         return false;
+    }
+};
+
+window.descompactarDaURL = function(compactedString) {
+    try {
+        console.log("Iniciando descompactação dos dados da URL...");
+        console.log("String compactada recebida (tamanho):", compactedString.length);
+        
+        // Primeiro decodificar a URL
+        const decodedString = decodeURIComponent(compactedString);
+        console.log("String decodificada da URL (tamanho):", decodedString.length);
+        
+        // Tentar processar como JSON direto primeiro
+        try {
+            const jsonData = JSON.parse(decodedString);
+            console.log("Dados já estão em formato JSON válido");
+            return jsonData;
+        } catch (jsonError) {
+            console.log("Não é um JSON direto, tentando decodificar...");
+        }
+        
+        // Tentar decodificar base64
+        try {
+            const base64Decoded = atob(decodedString);
+            console.log("Base64 decodificado (tamanho):", base64Decoded.length);
+            
+            // Se pako estiver disponível, tentar descomprimir
+            if (typeof window.pako !== 'undefined') {
+                try {
+                    const byteArray = new Uint8Array(base64Decoded.split('').map(c => c.charCodeAt(0)));
+                    const inflated = window.pako.inflate(byteArray, { to: 'string' });
+                    console.log("Dados descomprimidos com pako (tamanho):", inflated.length);
+                    
+                    const jsonData = JSON.parse(inflated);
+                    console.log("Dados descomprimidos convertidos para JSON com sucesso");
+                    return jsonData;
+                } catch (pakoError) {
+                    console.warn("Erro na descompressão pako, tentando base64 direto:", pakoError);
+                }
+            }
+            
+            // Se pako falhou ou não está disponível, tentar base64 como JSON
+            try {
+                const jsonData = JSON.parse(base64Decoded);
+                console.log("Base64 decodificado convertido para JSON com sucesso");
+                return jsonData;
+            } catch (jsonError) {
+                console.error("Erro ao converter base64 para JSON:", jsonError);
+            }
+        } catch (base64Error) {
+            console.error("Erro na decodificação base64:", base64Error);
+        }
+        
+        throw new Error("Não foi possível descompactar os dados em nenhum formato");
+    } catch (error) {
+        console.error("Erro fatal na descompactação:", error);
+        return null;
     }
 }; 

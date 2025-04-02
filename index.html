@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal do Produtor - Gestão de Propriedades</title>
     
+    <!-- Script para configurar o caminho base -->
+    <script>
+        // Detectar se estamos no GitHub Pages ou ambiente local
+        window.BASE_PATH = window.location.hostname === 'fabriciopiratini.github.io' 
+            ? '/cadastro_propriedades' 
+            : '';
+        
+        // Função auxiliar para obter caminhos corretos
+        window.getAssetPath = function(path) {
+            return window.BASE_PATH + path;
+        }
+    </script>
+    
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAMASURBVFiF7ZZNaBNBGIbfmd1sNtmkSZM0/qSxNqXWWkGkIFVRqBc9KR4EQbAeBL0pVPTgQQ+CJ0WKJ0GQihchBw+KB0UPWrR4EcVqW6n2L9U2pjbppk2ym+zOeGgSwm6ySbYR8ZAXlmHn+d553/lmdglVkv6dTt8BACMAQAihAMDquu5SSmmMEHKGUvpFluUwAOi6/oYQMsEYewsAhBASBwBGCEkQQs4DgKqqMwAgy/J5SZL6KKUzjuPMAQBjbC2l9CoAEEJIHADUjo6Oq4SQjK7rk5TSNUqpxRhbTyn9CQCMsRQA6Lru9y5JAkAcABhjAQBwXTcMALquRwkhZ3Vdf04pjRFCPjDGXgKALMsXCSFnGWPvAYAxFgUAQkgCAKqMsQQAKIoySQh5SSm9BgCO48wBwEpZlp8QQs4xxuYBwHXdEABQSr8CgEIIiQOAa9t2iDEWdRxnDgAsy1pFKb1BCDlr2/ZXAHBdNwwAjLEkAOiEkAQAVFmWNQ4Az2RZvgQAlmWFAWCFoihPCSHnLctKAYBt2yEAoJR+AwCdEJIAAMUwjHEAeCbL8mUAME0zDACRUCj0jBByIZ/PpwDANM0QAFBKvwOATghJAIBSKBTGAeCZoiiXAcA0zTAAhIPB4HNCyIV8Pp8CAMMwQgBAKf0BADohJAEASj6fHweAZ4qiXAYAwzDCABAKBALPCSEX8/l8CgDy+XwIACil8wCgE0ISAKDk8/lxAHimKMoVADAMIwwAQb/f/4IQcimXy6UAQNf1EABQSucBQCeEJABAyWazLwHguaqqVwAgm82GASDg8/leEkIuZbPZFABks9kQAFBKfwKATghJAICSzWbHAeCFqqpXASCbzYYBwO/1el8RQi5ns9kUAGQymRAA2La9AAA6ISQBAEomkxkHgBeqql4DgEwmEwYAn8fjeUUIuZLJZFIAkE6nQwBg2/YCAOiEkAQAKOl0ehwAXqiqeg0A0ul0GAC8brf7NSHkaiqVSgFAKpUKAYBt2wsAoBNCEgCgpFKpcQB4qWnaNQBIpVJhAHC7XK43hJCrqVQqBQDJZDIEALZtLwCATghJAMBfQf8v+g2UXqYCwwVXVQAAAABJRU5ErkJggg==">
     
@@ -35,10 +48,49 @@
             border-left: 4px solid #e63946;
             border-radius: 4px;
         }
+        
+        /* Classe para elementos visíveis apenas para leitores de tela */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+        
+        /* Estilos para os campos de edição */
+        .edit-fields {
+            margin: 15px 0;
+        }
+        
+        .edit-fields label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .edit-fields input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .edit-fields input:focus {
+            border-color: #2a7e19;
+            outline: none;
+            box-shadow: 0 0 5px rgba(42, 126, 25, 0.3);
+        }
     </style>
     
     <!-- CSS do projeto -->
-    <link rel="stylesheet" href="./src/css/style.css">
+    <link rel="stylesheet" href="src/css/style.css">
     
     <!-- Font Awesome para ícones -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -422,6 +474,7 @@
                 </div>
                 <div class="import-controls">
                     <button id="btn-importar">Importar Arquivos</button>
+                    <label for="file-input" class="sr-only">Selecionar arquivos para importar</label>
                     <input type="file" id="file-input" accept=".kml,.kmz,.shp,.zip" multiple style="display: none;">
                 </div>
             </div>
@@ -485,11 +538,22 @@
             </div>
             
             <!-- Campos de edição (inicialmente ocultos) -->
-            <input type="text" id="edit-area" class="edit-field" style="display: none;">
-            <input type="text" id="edit-matricula" class="edit-field" style="display: none;">
-            <input type="text" id="edit-car" class="edit-field" style="display: none;">
-            <input type="text" id="edit-itr" class="edit-field" style="display: none;">
-            <input type="text" id="edit-ccir" class="edit-field" style="display: none;">
+            <div class="edit-fields" style="display: none;">
+                <label for="edit-area">Área Total (ha)</label>
+                <input type="text" id="edit-area" class="edit-field">
+                
+                <label for="edit-matricula">Número da Matrícula</label>
+                <input type="text" id="edit-matricula" class="edit-field">
+                
+                <label for="edit-car">Número do CAR</label>
+                <input type="text" id="edit-car" class="edit-field">
+                
+                <label for="edit-itr">Número do ITR</label>
+                <input type="text" id="edit-itr" class="edit-field">
+                
+                <label for="edit-ccir">Número do CCIR</label>
+                <input type="text" id="edit-ccir" class="edit-field">
+            </div>
         </div>
         
         <!-- Modal de confirmação de exclusão -->
@@ -510,9 +574,11 @@
     </footer>
 
     <!-- JavaScript do aplicativo -->
-    <script src="./src/js/app.js"></script>
-    <script src="./src/js/armazenamento.js"></script>
-    <script src="./src/js/editor.js"></script>
+    <script>
+        document.write('<script src="' + window.getAssetPath('/src/js/app.js') + '"><\/script>');
+        document.write('<script src="' + window.getAssetPath('/src/js/armazenamento.js') + '"><\/script>');
+        document.write('<script src="' + window.getAssetPath('/src/js/editor.js') + '"><\/script>');
+    </script>
     
     <!-- Script para iniciar manualmente -->
     <script>

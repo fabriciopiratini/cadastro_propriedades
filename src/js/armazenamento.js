@@ -322,4 +322,96 @@ document.addEventListener('DOMContentLoaded', () => {
             window.salvarDadosLocalmente();
         }
     }, 30000);
-}); 
+});
+
+window.atualizarURLComPerimetros = function() {
+    try {
+        console.log('Iniciando atualização da URL com perímetros...');
+        
+        // Verificar se há propriedades para compartilhar
+        if (!window.propriedades || window.propriedades.length === 0) {
+            console.log('Nenhuma propriedade para compartilhar');
+            return;
+        }
+
+        // Preparar dados para compartilhamento
+        const dadosCompartilhaveis = window.propriedades.map(prop => {
+            let geometria = null;
+            try {
+                if (prop.camada && prop.camada.toGeoJSON) {
+                    geometria = prop.camada.toGeoJSON().geometry;
+                }
+            } catch (e) {
+                console.error('Erro ao serializar geometria:', e);
+            }
+            
+            return {
+                id: prop.id,
+                nome: prop.nome,
+                area: prop.area,
+                tipo: prop.tipo,
+                matricula: prop.matricula || '',
+                car: prop.car || '',
+                itr: prop.itr || '',
+                ccir: prop.ccir || '',
+                geometria: geometria
+            };
+        });
+
+        console.log(`${dadosCompartilhaveis.length} propriedades preparadas para compartilhamento`);
+
+        // Converter para JSON
+        const jsonString = JSON.stringify(dadosCompartilhaveis);
+        
+        // Verificar tamanho dos dados antes da compactação
+        if (jsonString.length > 50000) {
+            console.warn('Dados muito grandes para compartilhamento via URL');
+            alert('Os dados são muito grandes para compartilhar via URL. Considere reduzir o número de propriedades ou simplificar as geometrias.');
+            return;
+        }
+
+        // Compactar dados
+        let dadosCompactados;
+        try {
+            if (typeof pako !== 'undefined') {
+                console.log('Compactando dados com Pako...');
+                const compressedArray = pako.deflate(jsonString);
+                dadosCompactados = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedArray)));
+            } else {
+                console.log('Pako não disponível, usando codificação base64 simples...');
+                dadosCompactados = btoa(jsonString);
+            }
+            
+            // Codificar para URL
+            dadosCompactados = encodeURIComponent(dadosCompactados);
+            
+            // Verificar tamanho final da URL
+            const urlBase = window.location.origin + window.location.pathname;
+            const urlCompleta = `${urlBase}?data=${dadosCompactados}`;
+            
+            if (urlCompleta.length > 2000) {
+                console.warn('URL muito longa para compartilhamento');
+                alert('A URL gerada é muito longa para compartilhar. Considere reduzir o número de propriedades ou simplificar as geometrias.');
+                return;
+            }
+            
+            // Atualizar URL
+            window.history.replaceState({}, '', urlCompleta);
+            console.log('URL atualizada com sucesso');
+            
+            // Mostrar mensagem de sucesso
+            const mensagemEl = document.getElementById('mensagem-url');
+            if (mensagemEl) {
+                mensagemEl.textContent = 'Link atualizado! Copie a URL atual para compartilhar.';
+                mensagemEl.style.color = '#2a7e19';
+            }
+            
+        } catch (e) {
+            console.error('Erro ao compactar dados:', e);
+            alert('Erro ao gerar o link de compartilhamento. Por favor, tente novamente.');
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar URL:', error);
+        alert('Erro ao gerar o link de compartilhamento. Por favor, tente novamente.');
+    }
+}; 

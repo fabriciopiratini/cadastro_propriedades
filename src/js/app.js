@@ -945,171 +945,136 @@ function gerarLinkCompartilhavel() {
 // Função para carregar perímetros a partir de dados compartilhados
 window.carregarPerimetrosDeDados = function(dados) {
     try {
-        console.log("Iniciando carregamento de perímetros de dados compartilhados...");
+        console.log('Iniciando carregamento de perímetros...');
         
-        // Verificar se há um mapa inicializado
+        // Verificar se o mapa está inicializado
         if (!window.mapaAtual) {
-            console.error("Mapa não inicializado");
-            alert("Erro: O mapa não foi inicializado corretamente. Por favor, recarregue a página.");
-            return false;
+            console.error('Mapa não inicializado');
+            return;
         }
         
         // Verificar se os dados são válidos
-        if (!dados) {
-            console.error("Dados inválidos (nulos ou indefinidos)");
-            alert("Erro: Os dados compartilhados são inválidos.");
-            return false;
+        if (!dados || !Array.isArray(dados)) {
+            console.error('Dados inválidos para carregar');
+            return;
         }
         
-        // Se os dados forem uma string, tentar converter para objeto
+        // Converter string para objeto se necessário
         if (typeof dados === 'string') {
             try {
                 dados = JSON.parse(dados);
-                console.log("Dados convertidos de string para objeto");
-            } catch (parseError) {
-                console.error("Erro ao fazer parse dos dados:", parseError);
-                alert("Erro: O formato dos dados compartilhados é inválido.");
-                return false;
+            } catch (e) {
+                console.error('Erro ao converter string para objeto:', e);
+                return;
             }
         }
         
-        // Garantir que temos um array
+        // Garantir que dados é um array
         if (!Array.isArray(dados)) {
-            if (typeof dados === 'object') {
-                dados = [dados];
-                console.log("Objeto único convertido para array");
-            } else {
-                console.error("Formato de dados incompatível:", typeof dados);
-                alert("Erro: O formato dos dados compartilhados é incompatível.");
-                return false;
-            }
+            dados = [dados];
         }
         
-        // Verificar se há dados para processar
-        if (dados.length === 0) {
-            console.error("Nenhum dado para processar");
-            alert("Erro: Nenhuma propriedade encontrada nos dados compartilhados.");
-            return false;
+        console.log(`${dados.length} propriedades encontradas para carregar`);
+        
+        // Limpar propriedades existentes
+        if (window.propriedades) {
+            window.propriedades.forEach(prop => {
+                if (prop.camada) {
+                    window.mapaAtual.removeLayer(prop.camada);
+                }
+            });
         }
         
-        console.log(`Processando ${dados.length} propriedades...`);
-        
-        // Limpar propriedades existentes se necessário
+        // Inicializar array de propriedades
         window.propriedades = [];
-        
-        let sucessos = 0;
-        const camadasCarregadas = [];
         
         // Processar cada propriedade
         dados.forEach((prop, index) => {
             try {
-                console.log(`Processando propriedade ${index + 1}/${dados.length}: ${prop.nome || 'Sem nome'}`);
-                
                 // Validar geometria
-                if (!prop.geometria || !prop.geometria.coordinates || prop.geometria.coordinates.length === 0) {
-                    console.error(`Geometria inválida para propriedade ${index + 1}`);
+                if (!prop.geometria) {
+                    console.warn(`Propriedade ${index} sem geometria válida`);
                     return;
                 }
                 
-                // Criar feature GeoJSON
-                const feature = {
-                    type: 'Feature',
-                    properties: {
-                        name: prop.nome || `Propriedade ${index + 1}`,
-                        MATRICULA: prop.matricula || '',
-                        CAR: prop.car || '',
-                        ITR: prop.itr || '',
-                        CCIR: prop.ccir || ''
-                    },
-                    geometry: prop.geometria
-                };
-                
                 // Criar camada Leaflet
-                const layer = L.geoJSON(feature, {
+                const layer = L.geoJSON(prop.geometria, {
                     style: {
                         color: '#2a7e19',
                         weight: 2,
                         opacity: 0.7,
                         fillColor: '#2a7e19',
                         fillOpacity: 0.2
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.on({
+                            click: function(e) {
+                                if (typeof window.mostrarInformacoes === 'function') {
+                                    window.mostrarInformacoes(propriedade);
+                                }
+                            },
+                            mouseover: function(e) {
+                                layer.setStyle({
+                                    weight: 3,
+                                    fillOpacity: 0.4
+                                });
+                            },
+                            mouseout: function(e) {
+                                if (window.camadaAtiva !== layer) {
+                                    layer.setStyle({
+                                        color: '#2a7e19',
+                                        weight: 2,
+                                        opacity: 0.7,
+                                        fillColor: '#2a7e19',
+                                        fillOpacity: 0.2
+                                    });
+                                }
+                            }
+                        });
                     }
                 });
-                
-                // Adicionar ao mapa
-                layer.addTo(window.mapaAtual);
-                camadasCarregadas.push(layer);
                 
                 // Criar objeto da propriedade
                 const propriedade = {
-                    id: prop.id || window.gerarId(),
-                    nome: prop.nome || `Propriedade ${index + 1}`,
+                    id: prop.id || `prop-${index}`,
+                    nome: prop.nome || "Propriedade Sem Nome",
+                    tipo: prop.tipo || "Polígono",
+                    area: prop.area || 0,
+                    matricula: prop.matricula || "",
+                    car: prop.car || "",
+                    itr: prop.itr || "",
+                    ccir: prop.ccir || "",
                     camada: layer,
-                    tipo: prop.tipo || 'compartilhado',
-                    area: prop.area || window.calcularArea(layer),
-                    matricula: prop.matricula || '',
-                    car: prop.car || '',
-                    itr: prop.itr || '',
-                    ccir: prop.ccir || '',
-                    documentos: []
+                    geometria: prop.geometria
                 };
                 
-                // Adicionar ao armazenamento
+                // Adicionar ao mapa e ao array de propriedades
+                layer.addTo(window.mapaAtual);
                 window.propriedades.push(propriedade);
                 
-                // Configurar eventos
-                layer.on({
-                    click: () => window.mostrarInformacoes(propriedade),
-                    mouseover: () => {
-                        layer.setStyle({
-                            weight: 3,
-                            fillOpacity: 0.4
-                        });
-                    },
-                    mouseout: () => {
-                        if (window.camadaAtiva !== layer) {
-                            layer.setStyle({
-                                color: '#2a7e19',
-                                weight: 2,
-                                opacity: 0.7,
-                                fillColor: '#2a7e19',
-                                fillOpacity: 0.2
-                            });
-                        }
-                    }
-                });
+                console.log(`Propriedade ${index} carregada com sucesso`);
                 
-                sucessos++;
             } catch (error) {
-                console.error(`Erro ao processar propriedade ${index + 1}:`, error);
+                console.error(`Erro ao carregar propriedade ${index}:`, error);
             }
         });
         
-        // Verificar resultados
-        if (sucessos === 0) {
-            console.error("Nenhuma propriedade foi carregada com sucesso");
-            alert("Erro: Não foi possível carregar nenhuma propriedade.");
-            return false;
+        // Ajustar zoom para mostrar todas as propriedades
+        if (window.propriedades.length > 0) {
+            const bounds = L.featureGroup(window.propriedades.map(p => p.camada)).getBounds();
+            window.mapaAtual.fitBounds(bounds);
         }
         
-        console.log(`${sucessos} propriedades carregadas com sucesso`);
-        
-        // Ajustar visualização
-        if (camadasCarregadas.length > 0) {
-            const grupo = L.featureGroup(camadasCarregadas);
-            window.mapaAtual.fitBounds(grupo.getBounds(), {
-                padding: [50, 50],
-                maxZoom: 15
-            });
+        // Atualizar lista de propriedades
+        if (typeof window.atualizarListaPropriedades === 'function') {
+            window.atualizarListaPropriedades();
         }
         
-        // Atualizar interface
-        window.atualizarListaPropriedades();
+        console.log('Carregamento de perímetros concluído');
         
-        return true;
     } catch (error) {
-        console.error("Erro fatal ao carregar perímetros:", error);
-        alert("Erro: Ocorreu um problema ao carregar as propriedades.");
-        return false;
+        console.error('Erro ao carregar perímetros:', error);
+        alert('Erro ao carregar as propriedades. Por favor, tente novamente.');
     }
 };
 

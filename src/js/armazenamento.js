@@ -267,6 +267,51 @@ window.gerarURLCompartilhavel = function() {
     }
 };
 
+/**
+ * Descompacta os dados de um URL compartilhável
+ * @param {string} dadosCompactados Dados compactados para descompactar
+ * @returns {Array} Array de propriedades descompactadas
+ */
+window.descompactarDaURL = function(dadosCompactados) {
+    try {
+        console.log('Iniciando descompressão dos dados...');
+        
+        // Decodificar a URL
+        const dadosDecodificados = decodeURIComponent(dadosCompactados);
+        
+        // Tentar diferentes métodos de descompressão
+        try {
+            // Método 1: Tentar descompressão com Pako
+            if (typeof pako !== 'undefined') {
+                console.log('Tentando descompressão com Pako...');
+                const dadosBinarios = atob(dadosDecodificados);
+                const dadosDescompactados = pako.inflate(dadosBinarios);
+                const jsonString = new TextDecoder().decode(dadosDescompactados);
+                return JSON.parse(jsonString);
+            }
+        } catch (pakoError) {
+            console.warn('Falha na descompressão com Pako:', pakoError);
+        }
+        
+        try {
+            // Método 2: Tentar decodificar base64 diretamente
+            console.log('Tentando decodificação base64...');
+            const jsonString = atob(dadosDecodificados);
+            return JSON.parse(jsonString);
+        } catch (base64Error) {
+            console.warn('Falha na decodificação base64:', base64Error);
+        }
+        
+        // Método 3: Tentar usar os dados diretamente como JSON
+        console.log('Tentando usar dados como JSON direto...');
+        return JSON.parse(dadosDecodificados);
+        
+    } catch (error) {
+        console.error('Erro ao descompactar dados:', error);
+        throw new Error('Não foi possível descompactar os dados. Por favor, tente gerar um novo link de compartilhamento.');
+    }
+};
+
 // Auto-salvar quando propriedades são modificadas
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Módulo de armazenamento inicializado');
